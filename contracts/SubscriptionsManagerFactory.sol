@@ -3,15 +3,20 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@artman325/releasemanager/contracts/CostManagerFactoryHelper.sol";
 import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
 import "@artman325/releasemanager/contracts/ReleaseManager.sol";
 import "./interfaces/ISubscriptionsManager.sol";
+import "./interfaces/ISubscriptionsManagerFactory.sol";
 
-contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManagerHelper {
+
+contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManagerHelper, ISubscriptionsManagerFactory {
     using Clones for address;
+    using Address for address;
 
     /**
     * @custom:shortd implementation address
@@ -114,6 +119,32 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         instance = address(implementation).cloneDeterministic(salt);
         _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller);
     }
+
+    function doCharge(
+        address targetToken, 
+        uint256 amount, 
+        address from, 
+        address to
+    ) 
+        external 
+        returns(bool returnSuccess) 
+    {
+        // we shoud not revert transaction, just return failed condition of `transferFrom` attempt
+        bytes memory data = abi.encodeWithSelector(IERC20(targetToken).transferFrom.selector, from, to, amount);
+        (bool success, bytes memory returndata) = address(targetToken).call{value: 0}(data);
+
+        if (success) {
+            if (returndata.length == 0) {
+                // only check isContract if the call was successful and the return data is empty
+                // otherwise we already know that it was a contract
+                require(targetToken.isContract(), "Address: call to non-contract");
+            }
+            returnSuccess = true;
+        } else {
+            returnSuccess = false;
+        }
+    }
+
 
     ////////////////////////////////////////////////////////////////////////
     // internal section ////////////////////////////////////////////////////
