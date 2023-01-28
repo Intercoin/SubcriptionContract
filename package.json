@@ -49,5 +49,6 @@
     "vue-loader": "^15.9.8"
   },
   "dependencies": {
+    "@artman325/releasemanager": "^2.0.0"
   }
 }

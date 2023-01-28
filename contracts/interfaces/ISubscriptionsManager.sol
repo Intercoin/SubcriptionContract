@@ -15,6 +15,7 @@ interface ISubscriptionsManager {
     event StateChanged(address subscriber, bool newState);
 
     error SubscriptionTooLong();
+    error UnauthorizedContract(address controller);
 
     function initialize(
         uint32 interval_,
