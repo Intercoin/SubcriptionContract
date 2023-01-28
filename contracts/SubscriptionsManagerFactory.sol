@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@artman325/releasemanager/contracts/CostManagerFactoryHelper.sol";
 import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
+import "@artman325/releasemanager/contracts/ReleaseManager.sol";
 import "./interfaces/ISubscriptionsManager.sol";
 
 contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManagerHelper {
@@ -21,6 +22,8 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     address[] public instances;
     
     error InstanceCreatedFailed();
+    error UnauthorizedContract(address controller);
+
     event InstanceCreated(address instance, uint instancesCount);
 
     /**
@@ -134,6 +137,11 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         instances.push(instance);
         emit InstanceCreated(instance, instances.length);
 
+        bool isControllerinOurEcosystem = ReleaseManager(releaseManager()).checkInstance(controller);
+        if (!isControllerinOurEcosystem) {
+            revert UnauthorizedContract(controller);
+        }
+    
         //initialize
         ISubscriptionsManager(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller);
 

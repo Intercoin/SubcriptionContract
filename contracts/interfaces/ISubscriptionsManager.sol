@@ -4,6 +4,15 @@ pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManager {
 
+    struct Subscription {
+        uint256 price; // if not 0, it overrides the global price
+        address subscriber;
+        uint64 startTime;
+        uint64 endTime; // because it was canceled or broken, otherwise it is when it expires
+        uint16 intervals;
+        bool active;
+    }
+
     event Canceled(address subscriber, uint64 cancelTime);
     event Subscribed(address subscriber, uint64 startTime);
     event Restored(address subscriber, uint64 restoreTime, uint64 startTime);
@@ -15,7 +24,6 @@ interface ISubscriptionsManager {
     event StateChanged(address subscriber, bool newState);
 
     error SubscriptionTooLong();
-    error UnauthorizedContract(address controller);
 
     function initialize(
         uint32 interval_,
