@@ -26,6 +26,7 @@ interface ISubscriptionsManager {
     error SubscriptionTooLong();
     error SubscriptionTooShort();
     error ControllerOnly(address controller);
+    error OwnerOrCallerOnly();
     error NotSupported();
 
 

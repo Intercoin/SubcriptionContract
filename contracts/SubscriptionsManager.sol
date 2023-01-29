@@ -20,7 +20,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     bool recipientImplementsHooks; // whether recipient is a contract that implements onTransfer, etc.
 
     mapping (address => Subscription) public subscriptions;
-    mapping (address => uint256) public callers;
+    mapping (address => bool) public callers;
 
     address public controller; // optional, smart contract that can start a subscription and pay first charge
     address public factory; // the factory
@@ -40,6 +40,16 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
 
         _;
     }
+
+    
+    modifier ownerOrCaller() {
+        address ms = _msgSender();
+        if (owner() != _msgSender() && callers[ms] != true) {
+            revert OwnerOrCallerOnly();
+        }
+        _;
+    }
+
 
     function initialize(
         uint32 interval_,
@@ -118,6 +128,12 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
         }
     
+    }
+
+    function charge(address[] memory subscribers) external override ownerOrCaller {
+        // if all callers fail to do this within an interval
+        // then restore() will have to be called before charge()
+        _charge(subscribers, 1);
     }
 
 
@@ -264,7 +280,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     
     // ownerOrCaller
     // called to charge some subscribers and extend their subscriptions
-    function charge(address[] memory subscribers) external override {}// ownerOrCaller
+    
     function restore(address[] memory subscribers) external override {} // ownerOrCaller
     
     function isActive(address subscriber) external override view returns (bool) {}
