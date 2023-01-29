@@ -154,6 +154,14 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         delete callers[caller];
     }
 
+    function isActive(address subscriber) external override view returns (bool) {
+        Subscription storage subscription = subscriptions[subscriber];
+        return subscription.active;
+    }
+    function activeUntil(address subscriber) external override view returns (uint64) {
+        Subscription storage subscription = subscriptions[subscriber];
+        return subscription.endTime;
+    }
 
     ///////////////////////////////////
     // public
@@ -318,25 +326,4 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         }
     }
 
-
-    // -----------------------------
-    // TBD methods
-    // -----------------------------
-
-    
-    
-    // called by subscriber himself
-
-    // intervals is maximum times to renew   
-    
-    
-    // called by owner
-    
-    
-    // ownerOrCaller
-    // called to charge some subscribers and extend their subscriptions
-    
-    
-    function isActive(address subscriber) external override view returns (bool) {}
-    function activeUntil(address subscriber) external override view returns (uint64) {}
 }
