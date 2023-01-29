@@ -20,7 +20,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     bool recipientImplementsHooks; // whether recipient is a contract that implements onTransfer, etc.
 
     mapping (address => Subscription) public subscriptions;
-    mapping (address => uint256) public caller;
+    mapping (address => uint256) public callers;
 
     address public controller; // optional, smart contract that can start a subscription and pay first charge
     address public factory; // the factory
@@ -117,7 +117,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     // must prepay intervalsMin intervals to start a subscription
     function _subscribe(
         address subscriber, 
-        uint256 price, 
+        uint256 fee, 
         uint16 desiredIntervals
     ) 
         private 
@@ -130,7 +130,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
             revert SubscriptionTooShort();
         }
         subscriptions[subscriber] = Subscription(
-            price,
+            fee,
             subscriber,
             _currentBlockTimestamp(),
             _currentBlockTimestamp(),
