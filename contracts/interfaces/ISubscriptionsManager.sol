@@ -18,7 +18,7 @@ interface ISubscriptionsManager {
     event Restored(address subscriber, uint64 restoreTime, uint64 startTime);
     event Charged(address subscriber, uint256 amount);
     event ChargeFailed(address subscriber, uint256 amount);
-    event RetriesExpired(address subscriber, uint64 tryTime, uint16 retries);
+    event RetriesExpired(address subscriber, uint64 tryTime, uint64 retries);
     event SubscriptionIsBroken(address subscriber, uint64 chargeTime);
     event SubscriptionExpired(address subscriber, uint64 chargeTime);
     event StateChanged(address subscriber, bool newState);

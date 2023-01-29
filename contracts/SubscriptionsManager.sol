@@ -136,6 +136,15 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         _charge(subscribers, 1);
     }
 
+    function restore() external override {
+        address[] memory subscribers = new address[](1);
+        subscribers[0] = _msgSender();
+        _restore(subscribers, true);
+    }
+    function restore(address[] memory subscribers) external override ownerOrCaller{
+        _restore(subscribers, true);
+    }
+
 
     ///////////////////////////////////
     // public
@@ -259,6 +268,46 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         }
     }
 
+    function _restore(
+        address[] memory subscribers, 
+        bool ownerOrCaller_
+    ) 
+        private 
+    {
+        uint256 l = subscribers.length;
+        for (uint256 i = 0; i < l; i++) {
+            address subscriber = subscribers[i];
+            Subscription storage subscription = subscriptions[subscriber];
+            if (subscription.active) {
+                continue; // already active
+            }
+            uint64 difference = uint64(block.timestamp - subscription.endTime);
+            uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
+            if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
+                emit RetriesExpired(subscriber, _currentBlockTimestamp(), diffIntervals);
+                continue;
+            }
+            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
+                emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                continue;
+            }
+
+            uint256 amount = subscription.price;
+            if (amount == 0) {
+                amount = price;
+            }
+
+            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * diffIntervals, subscriber, recipient);
+
+            if (result) {
+                _active(subscription, true);
+                emit Restored(subscriber, _currentBlockTimestamp(), subscription.endTime);
+                subscription.endTime += interval * diffIntervals;
+            } else {
+                emit ChargeFailed(subscriber, amount);
+            }
+        }
+    }
 
 
     // -----------------------------
@@ -271,7 +320,6 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
 
     // intervals is maximum times to renew   
     
-    function restore() external override {}
     
     // called by owner
     
@@ -281,7 +329,6 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     // ownerOrCaller
     // called to charge some subscribers and extend their subscriptions
     
-    function restore(address[] memory subscribers) external override {} // ownerOrCaller
     
     function isActive(address subscriber) external override view returns (bool) {}
     function activeUntil(address subscriber) external override view returns (uint64) {}
