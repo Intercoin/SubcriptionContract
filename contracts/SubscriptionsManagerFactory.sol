@@ -73,6 +73,8 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     * @param token token address to charge
     * @param price price for subsription on single interval
     * @param controller [optional] controller address
+    * @param recipient address which will obtain pay for subscription
+    * @param recipientImplementsHooks if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
     * @return instance address of created instance `SubscriptionsManager`
     * @custom:shortd creation SubscriptionsManager instance
     */
@@ -83,13 +85,15 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint8 retries,
         address token,
         uint256 price,
-        address controller
+        address controller,
+        address recipient,
+        bool recipientImplementsHooks
     ) 
         public 
         returns (address instance) 
     {
         instance = address(implementation).clone();
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller);
+        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks);
     }
 
     /**
@@ -100,6 +104,8 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     * @param token token address to charge
     * @param price price for subsription on single interval
     * @param controller [optional] controller address
+    * @param recipient address which will obtain pay for subscription
+    * @param recipientImplementsHooks if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
     * @return instance address of created instance `SubscriptionsManager`
     * @custom:shortd creation SubscriptionsManager instance
     */
@@ -111,13 +117,15 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint8 retries,
         address token,
         uint256 price,
-        address controller
+        address controller,
+        address recipient,
+        bool recipientImplementsHooks
     ) 
         public 
         returns (address instance) 
     {
         instance = address(implementation).cloneDeterministic(salt);
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller);
+        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks);
     }
 
     function doCharge(
@@ -157,7 +165,9 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint8 retries,
         address token,
         uint256 price,
-        address controller
+        address controller,
+        address recipient,
+        bool recipientImplementsHooks
     ) 
         internal
     {
@@ -174,7 +184,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         }
     
         //initialize
-        ISubscriptionsManager(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller);
+        ISubscriptionsManager(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks);
 
         //after initialize
         //----

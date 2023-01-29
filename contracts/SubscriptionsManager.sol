@@ -3,7 +3,7 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@Artman325/community/contracts/interfaces/ICommunity.sol";
+import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManager.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
