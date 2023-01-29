@@ -145,6 +145,15 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         _restore(subscribers, true);
     }
 
+    
+    function addCaller(address caller) external override onlyOwner {
+        callers[caller] = true;
+    }
+    function removeCaller(address caller) external override onlyOwner {
+        //callers[caller] = false;
+        delete callers[caller];
+    }
+
 
     ///////////////////////////////////
     // public
@@ -323,8 +332,6 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     
     // called by owner
     
-    function addCaller(address caller) external override {}
-    function removeCaller(address caller) external override {}
     
     // ownerOrCaller
     // called to charge some subscribers and extend their subscriptions
