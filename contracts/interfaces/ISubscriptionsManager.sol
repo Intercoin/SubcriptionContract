@@ -24,15 +24,21 @@ interface ISubscriptionsManager {
     event StateChanged(address subscriber, bool newState);
 
     error SubscriptionTooLong();
+    error SubscriptionTooShort();
+    error ControllerOnly(address controller);
+    error NotSupported();
+
 
     function initialize(
-        uint32 interval_,
-        uint16 intervalsMax_,
-        uint16 intervalsMin_,
+        uint32 interval,
+        uint16 intervalsMax,
+        uint16 intervalsMin,
         uint8 retries,
         address token,
         uint256 price,
-        address controller
+        address controller,
+        address recipient,
+        bool recipientImplementsHooks
     ) external;
 
     
