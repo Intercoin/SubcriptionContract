@@ -96,6 +96,31 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         _subscribe(_msgSender(), price, desiredIntervals);
     }
 
+    
+    function cancel() external override {
+        
+        Subscription storage subscription = subscriptions[_msgSender()];
+        if (subscription.active) {
+            _active(subscription, false);
+            subscription.endTime = _currentBlockTimestamp();
+            emit Canceled(subscription.subscriber, _currentBlockTimestamp());
+        }
+    }
+
+    function cancel(address[] memory subscribers) external override onlyOwner {
+        uint256 l = subscribers.length;
+        for (uint256 i = 0; i < l; i++) {
+            Subscription storage subscription = subscriptions[subscribers[i]];
+            if (subscription.active) {
+                _active(subscription, false);
+                subscription.endTime = _currentBlockTimestamp();
+            }
+            emit Canceled(subscription.subscriber, _currentBlockTimestamp());
+        }
+    
+    }
+
+
     ///////////////////////////////////
     // public
     ///////////////////////////////////
@@ -230,11 +255,10 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
 
     // intervals is maximum times to renew   
     
-    function cancel() external override {}
     function restore() external override {}
     
     // called by owner
-    function cancel(address[] memory subscribers) external override {}
+    
     function addCaller(address caller) external override {}
     function removeCaller(address caller) external override {}
     
