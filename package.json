@@ -1,5 +1,5 @@
 {
-  "name": "@artman325/subcriptioncontract",
+  "name": "@artman325/subscriptioncontract",
   "files": [
     "/contracts/**/*.sol",
     "/build/contracts/*.json",
