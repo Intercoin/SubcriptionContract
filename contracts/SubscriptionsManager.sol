@@ -50,7 +50,19 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         _;
     }
 
-
+    /**
+    * @param interval period, day,week,month in seconds
+    * @param intervalsMax max interval
+    * @param intervalsMin min interval
+    * @param retries amount of retries
+    * @param token token address to charge
+    * @param price price for subsription on single interval
+    * @param controller [optional] controller address
+    * @param recipient address which will obtain pay for subscription
+    * @param recipientImplementsHooks if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
+    * @return instance address of created instance `SubscriptionsManager`
+    * @custom:shortd creation SubscriptionsManager instance
+    */
     function initialize(
         uint32 interval_,
         uint16 intervalsMax_,
@@ -231,17 +243,17 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
-            if (subscription.endTime > block.timestamp) {
+            if (subscription.endTime > _currentBlockTimestamp()) {
                 // subscription is still active, no need to charge
                 continue;
             }
-            if (subscription.endTime < block.timestamp - interval) {
+            if (subscription.endTime < _currentBlockTimestamp() - interval) {
                 // subscription was broken, needs to be restored first
                 _active(subscription, false);
                 emit SubscriptionIsBroken(subscriber, _currentBlockTimestamp());
                 continue;
             }
-            if (block.timestamp - subscription.startTime > interval * subscription.intervals) {
+            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
                 _active(subscription, false);
                 emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
                 continue;
@@ -298,7 +310,7 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
             if (subscription.active) {
                 continue; // already active
             }
-            uint64 difference = uint64(block.timestamp - subscription.endTime);
+            uint64 difference = uint64(_currentBlockTimestamp() - subscription.endTime);
             uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
             if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
                 emit RetriesExpired(subscriber, _currentBlockTimestamp(), diffIntervals);

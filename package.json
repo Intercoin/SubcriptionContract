@@ -1,5 +1,10 @@
 {
-  "name": "SubcriptionContract",
+  "name": "@artman325/subcriptioncontract",
+  "files": [
+    "/contracts/**/*.sol",
+    "/build/contracts/*.json",
+    "!/contracts/mocks/**/*"
+  ],
   "version": "1.0.0",
   "description": "Implements recurring subscriptions",
   "main": "index.js",

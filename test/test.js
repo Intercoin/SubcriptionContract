@@ -31,12 +31,13 @@ describe("Test", function () {
     const bob = accounts[2];
     const charlie = accounts[3];
     const david = accounts[4];
-    const frank = accounts[5];
+    const recipient = accounts[5];
     
     // setup useful vars
-    var SubscriptionsManagerFactory;
+    
     var SubscriptionsManager;
-    var CommunityMock;
+    //var CommunityMock;
+    var erc20;
     
     var CostManagerBad, CostManagerGood;
     beforeEach("deploying", async() => {
@@ -74,6 +75,28 @@ describe("Test", function () {
 
         await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
 
+        let ERC20Factory = await ethers.getContractFactory("ERC20Mintable");
+        erc20 = await ERC20Factory.deploy("ERC20 Token", "ERC20");
+
+        let p = [
+            86400, //uint32 interval,
+            20, //uint16 intervalsMax,
+            1, //uint16 intervalsMin,
+            3, //uint8 retries,
+            erc20.address, //address token,
+            ONE_ETH, //uint256 price,
+            address(0), //address controller,
+            recipient.address, //address recipient,
+            false //bool recipientImplementsHooks
+        ];
+
+        tx = await SubscriptionsManagerFactory.connect(owner).produce(
+            ...p
+        );
+        rc = await tx.wait(); // 0ms, as tx is already confirmed
+        event = rc.events.find(event => event.event === 'InstanceCreated');
+        [instance, instancesCount] = event.args;
+        SubscriptionsManager = await ethers.getContractAt("SubscriptionsManager",instance);
     });
 
     it('test', async () => {
