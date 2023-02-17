@@ -33,75 +33,290 @@ describe("Test", function () {
     const david = accounts[4];
     const recipient = accounts[5];
     
+    
+    describe("factory produce", function () {
+        const salt    = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000000";
+        const salt2   = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000001";
+
+        var SubscriptionsManager;
+        var SubscriptionsManagerFactory;
+        var SubscriptionsManagerImpl;
+        
+        //var CommunityMock;
+        var releaseManager;
+        var erc20;
+        var p;
+
+        beforeEach("deploying", async() => {
+            let ReleaseManagerFactoryF = await ethers.getContractFactory("MockReleaseManagerFactory");
+            let ReleaseManagerF = await ethers.getContractFactory("MockReleaseManager");
+            
+            //CommunityMockF = await ethers.getContractFactory("CommunityMock");    
+            
+            let implementationReleaseManager    = await ReleaseManagerF.deploy();
+
+            let releaseManagerFactory   = await ReleaseManagerFactoryF.connect(owner).deploy(implementationReleaseManager.address);
+            let tx,rc,event,instance,instancesCount;
+            //
+            tx = await releaseManagerFactory.connect(owner).produce();
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceProduced');
+            [instance, instancesCount] = event.args;
+            releaseManager = await ethers.getContractAt("MockReleaseManager",instance);
+
+            let SubscriptionsManagerFactoryF = await ethers.getContractFactory("SubscriptionsManagerFactory");
+            let SubscriptionsManagerF = await ethers.getContractFactory("SubscriptionsManagerUpgradeable");
+
+            SubscriptionsManagerImpl = await SubscriptionsManagerF.connect(owner).deploy();
+            SubscriptionsManagerFactory = await SubscriptionsManagerFactoryF.connect(owner).deploy(SubscriptionsManagerImpl.address, NO_COSTMANAGER, releaseManager.address);
+
+            // 
+            const factoriesList = [SubscriptionsManagerFactory.address];
+            const factoryInfo = [
+                [
+                    1,//uint8 factoryIndex; 
+                    1,//uint16 releaseTag; 
+                    "0x53696c766572000000000000000000000000000000000000"//bytes24 factoryChangeNotes;
+                ]
+            ];
+
+            await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
+
+            let ERC20Factory = await ethers.getContractFactory("ERC20Mintable");
+            erc20 = await ERC20Factory.deploy("ERC20 Token", "ERC20");
+
+            p = [
+                86400, //uint32 interval,
+                20, //uint16 intervalsMax,
+                1, //uint16 intervalsMin,
+                3, //uint8 retries,
+                erc20.address, //address token,
+                ONE_ETH, //uint256 price,
+                ZERO_ADDRESS, //address controller,
+                recipient.address, //address recipient,
+                false //bool recipientImplementsHooks
+            ];
+            
+            // rc = await tx.wait(); // 0ms, as tx is already confirmed
+            // event = rc.events.find(event => event.event === 'InstanceCreated');
+            // [instance, instancesCount] = event.args;
+            // SubscriptionsManager = await ethers.getContractAt("SubscriptionsManager",instance);
+        });
+
+
+        it("should produce", async() => {
+
+            let tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+            const rc = await tx.wait(); // 0ms, as tx is already confirmed
+            const event = rc.events.find(event => event.event === 'InstanceCreated');
+            const [instance,] = event.args;
+            expect(instance).not.to.be.eq(ZERO_ADDRESS);
+            
+        });
+        
+        it("should produce deterministic", async() => {
+            p = [salt, ...p]; // prepend salt into params as first param
+            let tx = await SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p);
+
+            let rc = await tx.wait(); // 0ms, as tx is already confirmed
+            let event = rc.events.find(event => event.event === 'InstanceCreated');
+            let [instance,] = event.args;
+            
+            await expect(SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p)).to.be.revertedWith('ERC1167: create2 failed');
+
+        });
+
+        it("can't create2 if created before with the same salt, even if different sender", async() => {
+            let tx,event,instanceWithSaltAgain, instanceWithSalt, instanceWithSalt2;
+
+            //make snapshot
+            let snapId = await ethers.provider.send('evm_snapshot', []);
+            let p1 =[salt, ...p]; // prepend salt into params as first param
+            tx = await SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p1);
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instanceWithSalt,] = event.args;
+            //revert snapshot
+            await ethers.provider.send('evm_revert', [snapId]);
+
+            let p2 =[salt2, ...p]; // prepend salt into params as first param
+            // make create2. then create and finally again with salt. 
+            tx = await SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p2);
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instanceWithSalt2,] = event.args;
+            
+            await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+            tx = await SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p1);
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instanceWithSaltAgain,] = event.args;
+
+
+            expect(instanceWithSaltAgain).to.be.eq(instanceWithSalt);
+            expect(instanceWithSalt2).not.to.be.eq(instanceWithSalt);
+
+            await expect(SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p1)).to.be.revertedWith('ERC1167: create2 failed');
+            await expect(SubscriptionsManagerFactory.connect(owner).produceDeterministic(...p2)).to.be.revertedWith('ERC1167: create2 failed');
+            await expect(SubscriptionsManagerFactory.connect(alice).produceDeterministic(...p2)).to.be.revertedWith('ERC1167: create2 failed');
+            
+        });
+        it("shouldnt initialize again", async() => {
+            let tx, rc, event, instance, instancesCount;
+            tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instance,] = event.args;
+            
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instance, instancesCount] = event.args;
+            let subscriptionsManager = await ethers.getContractAt("SubscriptionsManagerUpgradeable",instance);
+
+            let p1 =[...p, ZERO_ADDRESS, ZERO_ADDRESS]; // prepend salt into params as first param
+            await expect(
+                subscriptionsManager.connect(owner).initialize(...p1)
+            ).to.be.revertedWith('Initializable: contract is already initialized');
+
+        });
+        it("shouldnt initialize implementation", async() => {
+            
+            let p1 =[...p, ZERO_ADDRESS, ZERO_ADDRESS]; // prepend salt into params as first param
+            await expect(
+                SubscriptionsManagerImpl.connect(owner).initialize(...p1)
+            ).to.be.revertedWith('Initializable: contract is already initialized');
+            
+        });
+        it("controller must be optional(zero) overwise must be in out ecosystem", async() => {
+            await SubscriptionsManagerFactory.connect(owner).produce(...p);
+            let pWithWrongController;
+            
+            pWithWrongControllerAsEOAUser = [
+                86400, 20, 1, 3, erc20.address, ONE_ETH,
+                recipient.address, //address controller,
+                recipient.address, false
+            ];
+            await expect(
+                SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsEOAUser)
+            ).to.be.revertedWith(`UnauthorizedContract("${recipient.address}")`);
+
+            pWithWrongControllerAsERC20 = [
+                86400, 20, 1, 3, erc20.address, ONE_ETH,
+                erc20.address, //address controller,
+                recipient.address, false
+            ];
+            await expect(
+                SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsERC20)
+            ).to.be.revertedWith(`UnauthorizedContract("${erc20.address}")`);
+
+        });
+
+        it("instancesCount shoud be increase after produce", async() => {
+            let beforeProduce = await SubscriptionsManagerFactory.instancesCount();
+            await SubscriptionsManagerFactory.connect(owner).produce(...p);
+            let afterProduce = await SubscriptionsManagerFactory.instancesCount();
+            expect(afterProduce).to.be.eq(beforeProduce.add(ONE))
+        });
+
+        it("should registered instance in release manager", async() => {
+            let tx, rc, event, instance;
+            tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instance,] = event.args;
+            
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instance,] = event.args;
+
+            let success = await releaseManager.checkInstance(instance);
+            expect(success).to.be.true;
+            let notSuccess = await releaseManager.checkInstance(erc20.address);
+            expect(notSuccess).to.be.false;
+        });
+        
+    });
+
+/*
+    describe("instance checks", function () {
+        var SubscriptionsManager;
+        //var CommunityMock;
+        var erc20;
+        
+        var CostManagerBad, CostManagerGood;
+        beforeEach("deploying", async() => {
+            let ReleaseManagerFactoryF = await ethers.getContractFactory("MockReleaseManagerFactory");
+            let ReleaseManagerF = await ethers.getContractFactory("MockReleaseManager");
+            
+            //CommunityMockF = await ethers.getContractFactory("CommunityMock");    
+            
+            let implementationReleaseManager    = await ReleaseManagerF.deploy();
+
+            let releaseManagerFactory   = await ReleaseManagerFactoryF.connect(owner).deploy(implementationReleaseManager.address);
+            let tx,rc,event,instance,instancesCount;
+            //
+            tx = await releaseManagerFactory.connect(owner).produce();
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceProduced');
+            [instance, instancesCount] = event.args;
+            let releaseManager = await ethers.getContractAt("MockReleaseManager",instance);
+
+            let SubscriptionsManagerFactoryF = await ethers.getContractFactory("SubscriptionsManagerFactory");
+            let SubscriptionsManagerF = await ethers.getContractFactory("SubscriptionsManager");
+
+            let SubscriptionsManagerImpl = await SubscriptionsManagerF.connect(owner).deploy();
+            let SubscriptionsManagerFactory = await SubscriptionsManagerFactoryF.connect(owner).deploy(SubscriptionsManagerImpl.address, NO_COSTMANAGER, releaseManager.address);
+
+            // 
+            const factoriesList = [SubscriptionsManagerFactory.address];
+            const factoryInfo = [
+                [
+                    1,//uint8 factoryIndex; 
+                    1,//uint16 releaseTag; 
+                    "0x53696c766572000000000000000000000000000000000000"//bytes24 factoryChangeNotes;
+                ]
+            ];
+
+            await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
+
+            let ERC20Factory = await ethers.getContractFactory("ERC20Mintable");
+            erc20 = await ERC20Factory.deploy("ERC20 Token", "ERC20");
+
+            let p = [
+                86400, //uint32 interval,
+                20, //uint16 intervalsMax,
+                1, //uint16 intervalsMin,
+                3, //uint8 retries,
+                erc20.address, //address token,
+                ONE_ETH, //uint256 price,
+                ZERO_ADDRESS, //address controller,
+                recipient.address, //address recipient,
+                false //bool recipientImplementsHooks
+            ];
+
+            tx = await SubscriptionsManagerFactory.connect(owner).produce(
+                ...p
+            );
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceCreated');
+            [instance, instancesCount] = event.args;
+            SubscriptionsManager = await ethers.getContractAt("SubscriptionsManager",instance);
+        });
+
+        it('test', async () => {
+            expect(true).to.be.eq(true);
+        });
+    });
+    */
     // setup useful vars
     
-    var SubscriptionsManager;
-    //var CommunityMock;
-    var erc20;
     
-    var CostManagerBad, CostManagerGood;
-    beforeEach("deploying", async() => {
-        let ReleaseManagerFactoryF = await ethers.getContractFactory("MockReleaseManagerFactory");
-        let ReleaseManagerF = await ethers.getContractFactory("MockReleaseManager");
-        
-        //CommunityMockF = await ethers.getContractFactory("CommunityMock");    
-        
-        let implementationReleaseManager    = await ReleaseManagerF.deploy();
 
-        let releaseManagerFactory   = await ReleaseManagerFactoryF.connect(owner).deploy(implementationReleaseManager.address);
-        let tx,rc,event,instance,instancesCount;
-        //
-        tx = await releaseManagerFactory.connect(owner).produce();
-        rc = await tx.wait(); // 0ms, as tx is already confirmed
-        event = rc.events.find(event => event.event === 'InstanceProduced');
-        [instance, instancesCount] = event.args;
-        let releaseManager = await ethers.getContractAt("MockReleaseManager",instance);
 
-        let SubscriptionsManagerFactoryF = await ethers.getContractFactory("SubscriptionsManagerFactory");
-        let SubscriptionsManagerF = await ethers.getContractFactory("SubscriptionsManager");
-
-        let SubscriptionsManagerImpl = await SubscriptionsManagerF.connect(owner).deploy();
-        let SubscriptionsManagerFactory = await SubscriptionsManagerFactoryF.connect(owner).deploy(SubscriptionsManagerImpl.address, NO_COSTMANAGER, releaseManager.address);
-
-        // 
-        const factoriesList = [SubscriptionsManagerFactory.address];
-        const factoryInfo = [
-            [
-                1,//uint8 factoryIndex; 
-                1,//uint16 releaseTag; 
-                "0x53696c766572000000000000000000000000000000000000"//bytes24 factoryChangeNotes;
-            ]
-        ];
-
-        await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
-
-        let ERC20Factory = await ethers.getContractFactory("ERC20Mintable");
-        erc20 = await ERC20Factory.deploy("ERC20 Token", "ERC20");
-
-        let p = [
-            86400, //uint32 interval,
-            20, //uint16 intervalsMax,
-            1, //uint16 intervalsMin,
-            3, //uint8 retries,
-            erc20.address, //address token,
-            ONE_ETH, //uint256 price,
-            address(0), //address controller,
-            recipient.address, //address recipient,
-            false //bool recipientImplementsHooks
-        ];
-
-        tx = await SubscriptionsManagerFactory.connect(owner).produce(
-            ...p
-        );
-        rc = await tx.wait(); // 0ms, as tx is already confirmed
-        event = rc.events.find(event => event.event === 'InstanceCreated');
-        [instance, instancesCount] = event.args;
-        SubscriptionsManager = await ethers.getContractAt("SubscriptionsManager",instance);
-    });
-
-    it('test', async () => {
-        expect(true).to.be.eq(true);
-    });
 /*
     it('validate input params', async () => {
         

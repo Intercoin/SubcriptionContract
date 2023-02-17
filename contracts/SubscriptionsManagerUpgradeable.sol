@@ -3,12 +3,14 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@artman325/releasemanager/contracts/CostManagerHelper.sol";
 import "@artman325/community/contracts/interfaces/ICommunity.sol";
-import "./interfaces/ISubscriptionsManager.sol";
+import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
 
-contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
+contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
     uint32 public interval;
     uint16 public intervalsMax; // if 0, no max
     uint16 public intervalsMin;
@@ -27,6 +29,10 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
     //address owner; // owner can cancel subscriptions, add callers
     address community; // any CommunityContract
     uint8 roleId; // the role
+
+    uint8 internal constant OPERATION_SHIFT_BITS = 240;  // 256 - 16
+    // Constants representing operations
+    uint8 internal constant OPERATION_INITIALIZE = 0x0;
 
     modifier onlyController() {
         
@@ -50,18 +56,24 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-    * @param interval period, day,week,month in seconds
-    * @param intervalsMax max interval
-    * @param intervalsMin min interval
-    * @param retries amount of retries
-    * @param token token address to charge
-    * @param price price for subsription on single interval
-    * @param controller [optional] controller address
-    * @param recipient address which will obtain pay for subscription
-    * @param recipientImplementsHooks if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
-    * @return instance address of created instance `SubscriptionsManager`
-    * @custom:shortd creation SubscriptionsManager instance
+    * @param interval_ period, day,week,month in seconds
+    * @param intervalsMax_ max interval
+    * @param intervalsMin_ min interval
+    * @param retries_ amount of retries
+    * @param token_ token address to charge
+    * @param price_ price for subsription on single interval
+    * @param controller_ [optional] controller address
+    * @param recipient_ address which will obtain pay for subscription
+    * @param recipientImplementsHooks_ if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
+    * @param costManager_ costManager address
+    * @param producedBy_ producedBy address
+    * @custom:calledby factory
+    * @custom:shortd initialize while factory produce
     */
     function initialize(
         uint32 interval_,
@@ -72,16 +84,21 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         uint256 price_,
         address controller_,
         address recipient_,
-        bool recipientImplementsHooks_
+        bool recipientImplementsHooks_,
+        address costManager_,
+        address producedBy_
     ) 
-        external 
+        external
+        initializer  
         override
     {
 
-        // check controller contract was an instance of ANY factory from our ecosystem
-        // we put this checking into factory and avoid external calls (get releasemanager from factory, then check controller in releasemanager)
+        __CostManagerHelper_init(_msgSender());
+        _setCostManager(costManager_);
 
         __Ownable_init();
+        __ReentrancyGuard_init();
+        
         factory = owner();
 
         interval = interval_;
@@ -93,6 +110,12 @@ contract SubscriptionsManager is OwnableUpgradeable, ISubscriptionsManager {
         controller = controller_;
         recipient = recipient_;
         recipientImplementsHooks = recipientImplementsHooks_;
+
+        _accountForOperation(
+            OPERATION_INITIALIZE << OPERATION_SHIFT_BITS,
+            uint256(uint160(producedBy_)),
+            0
+        );
     }
 
     ///////////////////////////////////

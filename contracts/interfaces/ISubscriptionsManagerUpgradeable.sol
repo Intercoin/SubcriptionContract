@@ -2,7 +2,7 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
-interface ISubscriptionsManager {
+interface ISubscriptionsManagerUpgradeable {
 
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
@@ -39,7 +39,9 @@ interface ISubscriptionsManager {
         uint256 price,
         address controller,
         address recipient,
-        bool recipientImplementsHooks
+        bool recipientImplementsHooks,
+        address costManager,
+        address producedBy
     ) external;
 
     

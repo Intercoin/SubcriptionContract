@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@artman325/releasemanager/contracts/CostManagerFactoryHelper.sol";
 import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
 import "@artman325/releasemanager/contracts/ReleaseManager.sol";
-import "./interfaces/ISubscriptionsManager.sol";
+import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 
 
@@ -178,13 +178,15 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         instances.push(instance);
         emit InstanceCreated(instance, instances.length);
 
-        bool isControllerinOurEcosystem = ReleaseManager(releaseManager()).checkInstance(controller);
-        if (!isControllerinOurEcosystem) {
-            revert UnauthorizedContract(controller);
+        if (controller != address(0)) {
+            bool isControllerinOurEcosystem = ReleaseManager(releaseManager()).checkInstance(controller);
+            if (!isControllerinOurEcosystem) {
+                revert UnauthorizedContract(controller);
+            }
         }
     
         //initialize
-        ISubscriptionsManager(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks);
+        ISubscriptionsManagerUpgradeable(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks, costManager, msg.sender);
 
         //after initialize
         //----
