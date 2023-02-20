@@ -24,13 +24,21 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     */
     address public immutable implementation;
 
-    address[] public instances;
+    mapping(address => bool) public instances;
+    uint256 internal totalInstancesCount;
     
-    error InstanceCreatedFailed();
+    //error InstanceCreatedFailed();
     error UnauthorizedContract(address controller);
+    error OnlyInstances();
 
     event InstanceCreated(address instance, uint instancesCount);
 
+    modifier onlyInstance() {
+        if (instances[msg.sender] == false) {
+            revert OnlyInstances();
+        }
+        _;
+    }
     /**
     */
     constructor(
@@ -58,7 +66,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         view 
         returns (uint256 amount) 
     {
-        amount = instances.length;
+        amount = totalInstancesCount;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -135,22 +143,31 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         address to
     ) 
         external 
+        onlyInstance
         returns(bool returnSuccess) 
     {
+        returnSuccess = false;
+        
         // we shoud not revert transaction, just return failed condition of `transferFrom` attempt
         bytes memory data = abi.encodeWithSelector(IERC20(targetToken).transferFrom.selector, from, to, amount);
         (bool success, bytes memory returndata) = address(targetToken).call{value: 0}(data);
 
         if (success) {
+            returnSuccess = true;
+
             if (returndata.length == 0) {
                 // only check isContract if the call was successful and the return data is empty
                 // otherwise we already know that it was a contract
-                require(targetToken.isContract(), "Address: call to non-contract");
+                //require(targetToken.isContract(), "Address: call to non-contract");
+                if (!targetToken.isContract()) {
+                    returnSuccess = false;
+                }
             }
-            returnSuccess = true;
-        } else {
-            returnSuccess = false;
+            
+        // } else {
+        //     returnSuccess = false;
         }
+    
     }
 
 
@@ -172,11 +189,14 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         internal
     {
         //before initialize
-        if (instance == address(0)) {
-            revert InstanceCreatedFailed();
-        }
-        instances.push(instance);
-        emit InstanceCreated(instance, instances.length);
+
+        // already cheched in clone/cloneDeterministic
+        // if (instance == address(0)) {
+        //     revert InstanceCreatedFailed();
+        // }
+        instances[instance] = true;
+        totalInstancesCount++;
+        emit InstanceCreated(instance, totalInstancesCount);
 
         if (controller != address(0)) {
             bool isControllerinOurEcosystem = ReleaseManager(releaseManager()).checkInstance(controller);

@@ -64,7 +64,7 @@ describe("Test", function () {
             [instance, instancesCount] = event.args;
             releaseManager = await ethers.getContractAt("MockReleaseManager",instance);
 
-            let SubscriptionsManagerFactoryF = await ethers.getContractFactory("SubscriptionsManagerFactory");
+            let SubscriptionsManagerFactoryF = await ethers.getContractFactory("MockSubscriptionsManagerFactory");
             let SubscriptionsManagerF = await ethers.getContractFactory("SubscriptionsManagerUpgradeable");
 
             SubscriptionsManagerImpl = await SubscriptionsManagerF.connect(owner).deploy();
@@ -102,7 +102,6 @@ describe("Test", function () {
             // [instance, instancesCount] = event.args;
             // SubscriptionsManager = await ethers.getContractAt("SubscriptionsManager",instance);
         });
-
 
         it("should produce", async() => {
 
@@ -163,6 +162,7 @@ describe("Test", function () {
             await expect(SubscriptionsManagerFactory.connect(alice).produceDeterministic(...p2)).to.be.revertedWith('ERC1167: create2 failed');
             
         });
+
         it("shouldnt initialize again", async() => {
             let tx, rc, event, instance, instancesCount;
             tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
@@ -182,6 +182,7 @@ describe("Test", function () {
             ).to.be.revertedWith('Initializable: contract is already initialized');
 
         });
+
         it("shouldnt initialize implementation", async() => {
             
             let p1 =[...p, ZERO_ADDRESS, ZERO_ADDRESS]; // prepend salt into params as first param
@@ -190,6 +191,7 @@ describe("Test", function () {
             ).to.be.revertedWith('Initializable: contract is already initialized');
             
         });
+
         it("controller must be optional(zero) overwise must be in out ecosystem", async() => {
             await SubscriptionsManagerFactory.connect(owner).produce(...p);
             let pWithWrongController;
@@ -229,16 +231,91 @@ describe("Test", function () {
             event = rc.events.find(event => event.event === 'InstanceCreated');
             [instance,] = event.args;
             
-            rc = await tx.wait(); // 0ms, as tx is already confirmed
-            event = rc.events.find(event => event.event === 'InstanceCreated');
-            [instance,] = event.args;
-
             let success = await releaseManager.checkInstance(instance);
             expect(success).to.be.true;
             let notSuccess = await releaseManager.checkInstance(erc20.address);
             expect(notSuccess).to.be.false;
         });
+
+        it("should revert if call charge any contract expect factory instances", async() => {
+            let MockSubscriptionsManagerChargeTestF = await ethers.getContractFactory("MockSubscriptionsManagerChargeTest");
+            let MockSubscriptionsManagerChargeTest = await MockSubscriptionsManagerChargeTestF.connect(owner).deploy();
+
+            // call from contract
+            await expect(
+                MockSubscriptionsManagerChargeTest.connect(owner).chargeMock(
+                    SubscriptionsManagerFactory.address,
+                    erc20.address,
+                    ONE_ETH,
+                    alice.address,
+                    bob.address
+                )
+            ).to.be.revertedWith(`OnlyInstances()`);
+
+            // call directly
+            await expect(
+                SubscriptionsManagerFactory.connect(owner).doCharge(
+                    erc20.address,
+                    ONE_ETH,
+                    alice.address,
+                    bob.address
+                )
+            ).to.be.revertedWith(`OnlyInstances()`);
         
+        });
+
+        it("shouldnt revert tx when call charge", async() => {
+            let MockSubscriptionsManagerChargeTestF = await ethers.getContractFactory("MockSubscriptionsManagerChargeTest");
+            let MockSubscriptionsManagerChargeTest = await MockSubscriptionsManagerChargeTestF.connect(owner).deploy();
+
+            await SubscriptionsManagerFactory.addIntoInstances(MockSubscriptionsManagerChargeTest.address);
+            
+            await MockSubscriptionsManagerChargeTest.connect(owner).chargeMock(
+                SubscriptionsManagerFactory.address,
+                erc20.address,
+                ONE_ETH,
+                alice.address,
+                bob.address
+            );
+
+            let success = await MockSubscriptionsManagerChargeTest.viewState();
+            expect(success).to.be.false; // 
+
+            
+        });
+
+        it("should correct charge", async() => {
+            let MockSubscriptionsManagerChargeTestF = await ethers.getContractFactory("MockSubscriptionsManagerChargeTest");
+            let MockSubscriptionsManagerChargeTest = await MockSubscriptionsManagerChargeTestF.connect(owner).deploy();
+
+            await SubscriptionsManagerFactory.addIntoInstances(MockSubscriptionsManagerChargeTest.address);
+            
+            let amountToCharge = ONE_ETH;
+            await erc20.connect(owner).mint(alice.address, amountToCharge);
+            await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, amountToCharge);
+            
+            let aliceBalanceBefore,bobBalanceBefore,aliceBalanceAfter,bobBalanceAfter;
+            aliceBalanceBefore = await erc20.balanceOf(alice.address);
+            bobBalanceBefore = await erc20.balanceOf(bob.address);
+            await MockSubscriptionsManagerChargeTest.connect(owner).chargeMock(
+                SubscriptionsManagerFactory.address,
+                erc20.address,
+                amountToCharge,
+                alice.address,
+                bob.address
+            );
+            aliceBalanceAfter = await erc20.balanceOf(alice.address);
+            bobBalanceAfter = await erc20.balanceOf(bob.address);
+
+            let success = await MockSubscriptionsManagerChargeTest.viewState();
+            expect(success).to.be.true; // 
+
+            // balances should be correct also
+            expect(aliceBalanceBefore.sub(aliceBalanceAfter)).to.be.eq(amountToCharge);
+            expect(bobBalanceAfter.sub(bobBalanceBefore)).to.be.eq(amountToCharge);
+
+            
+        });
     });
 
 /*
