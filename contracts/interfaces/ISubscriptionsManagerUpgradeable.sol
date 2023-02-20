@@ -3,14 +3,14 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManagerUpgradeable {
-
+    enum SubscriptionState{ NONE, INACTIVE, ACTIVE, BROKEN}
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
         address subscriber;
         uint64 startTime;
         uint64 endTime; // because it was canceled or broken, otherwise it is when it expires
         uint16 intervals;
-        bool active;
+        SubscriptionState state;
     }
 
     event Canceled(address subscriber, uint64 cancelTime);
@@ -21,7 +21,7 @@ interface ISubscriptionsManagerUpgradeable {
     event RetriesExpired(address subscriber, uint64 tryTime, uint64 retries);
     event SubscriptionIsBroken(address subscriber, uint64 chargeTime);
     event SubscriptionExpired(address subscriber, uint64 chargeTime);
-    event StateChanged(address subscriber, bool newState);
+    event StateChanged(address subscriber, SubscriptionState newState);
 
     error SubscriptionTooLong();
     error SubscriptionTooShort();
@@ -66,7 +66,7 @@ interface ISubscriptionsManagerUpgradeable {
     function charge(address[] memory subscribers) external;// ownerOrCaller
     function restore(address[] memory subscribers) external; // ownerOrCaller
     
-    function isActive(address subscriber) external view returns (bool);
+    function isActive(address subscriber) external view returns (SubscriptionState);
     function activeUntil(address subscriber) external view returns (uint64);
         
 }

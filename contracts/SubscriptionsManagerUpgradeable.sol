@@ -145,8 +145,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     function cancel() external override {
         
         Subscription storage subscription = subscriptions[_msgSender()];
-        if (subscription.active) {
-            _active(subscription, false);
+        if (subscription.state == SubscriptionState.ACTIVE) {
+            _active(subscription, SubscriptionState.BROKEN);
             subscription.endTime = _currentBlockTimestamp();
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
         }
@@ -156,8 +156,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         uint256 l = subscribers.length;
         for (uint256 i = 0; i < l; i++) {
             Subscription storage subscription = subscriptions[subscribers[i]];
-            if (subscription.active) {
-                _active(subscription, false);
+            if (subscription.state == SubscriptionState.ACTIVE) {
+                _active(subscription, SubscriptionState.BROKEN);
                 subscription.endTime = _currentBlockTimestamp();
             }
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
@@ -174,7 +174,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     function restore() external override {
         address[] memory subscribers = new address[](1);
         subscribers[0] = _msgSender();
-        _restore(subscribers, true);
+        _restore(subscribers, false);
     }
     function restore(address[] memory subscribers) external override ownerOrCaller{
         _restore(subscribers, true);
@@ -189,9 +189,9 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         delete callers[caller];
     }
 
-    function isActive(address subscriber) external override view returns (bool) {
+    function isActive(address subscriber) external override view returns (SubscriptionState) {
         Subscription storage subscription = subscriptions[subscriber];
-        return subscription.active;
+        return subscription.state;
     }
     function activeUntil(address subscriber) external override view returns (uint64) {
         Subscription storage subscription = subscriptions[subscriber];
@@ -237,7 +237,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             _currentBlockTimestamp(),
             _currentBlockTimestamp(),
             desiredIntervals,
-            false
+            SubscriptionState.INACTIVE
         );
 
         //-
@@ -272,12 +272,12 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             }
             if (subscription.endTime < _currentBlockTimestamp() - interval) {
                 // subscription was broken, needs to be restored first
-                _active(subscription, false);
+                _active(subscription, SubscriptionState.INACTIVE);
                 emit SubscriptionIsBroken(subscriber, _currentBlockTimestamp());
                 continue;
             }
             if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
-                _active(subscription, false);
+                _active(subscription, SubscriptionState.BROKEN);
                 emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
                 continue;
             }
@@ -298,11 +298,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         
     }
 
-    function _active(Subscription storage subscription, bool newState) private {
-        if (subscription.active == newState) {
+    function _active(Subscription storage subscription, SubscriptionState newState) private {
+        if (subscription.state == newState && newState == SubscriptionState.ACTIVE) {
             return; // nothing to do
         }
-        subscription.active = newState;
+        subscription.state = newState;
         emit StateChanged(subscription.subscriber, newState);
         
         if (community == address(0)) {
@@ -313,7 +313,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         uint8[] memory _r = new uint8[](1);
         _s[0] = subscription.subscriber;
         _r[0] = roleId;
-        if (newState) {
+        if (newState == SubscriptionState.ACTIVE) {
             ICommunity(community).grantRoles(_s, _r);
         } else {
             ICommunity(community).revokeRoles(_s, _r);
@@ -330,7 +330,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
-            if (subscription.active) {
+            if (subscription.state == SubscriptionState.ACTIVE) {
                 continue; // already active
             }
             uint64 difference = uint64(_currentBlockTimestamp() - subscription.endTime);
@@ -352,7 +352,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * diffIntervals, subscriber, recipient);
 
             if (result) {
-                _active(subscription, true);
+                _active(subscription, SubscriptionState.ACTIVE);
                 emit Restored(subscriber, _currentBlockTimestamp(), subscription.endTime);
                 subscription.endTime += interval * diffIntervals;
             } else {
