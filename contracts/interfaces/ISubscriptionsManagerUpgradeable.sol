@@ -3,7 +3,12 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManagerUpgradeable {
-    enum SubscriptionState{ NONE, INACTIVE, ACTIVE, BROKEN}
+    enum SubscriptionState{ 
+        NONE,       // Subscription notfound. its like default value for subscription state
+        EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
+        ACTIVE,     // Active subscription
+        BROKEN      // Becomes broken after failed retries to charge 
+    }
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
         address subscriber;
@@ -66,7 +71,7 @@ interface ISubscriptionsManagerUpgradeable {
     function charge(address[] memory subscribers) external;// ownerOrCaller
     function restore(address[] memory subscribers) external; // ownerOrCaller
     
-    function isActive(address subscriber) external view returns (SubscriptionState);
+    function isActive(address subscriber) external view returns (bool, SubscriptionState);
     function activeUntil(address subscriber) external view returns (uint64);
         
 }

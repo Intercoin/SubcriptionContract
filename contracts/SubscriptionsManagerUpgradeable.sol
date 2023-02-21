@@ -9,7 +9,7 @@ import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
-
+//import "hardhat/console.sol";
 contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
     uint32 public interval;
     uint16 public intervalsMax; // if 0, no max
@@ -189,9 +189,17 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         delete callers[caller];
     }
 
-    function isActive(address subscriber) external override view returns (SubscriptionState) {
+    function isActive(address subscriber) external override view returns (bool, SubscriptionState) {
         Subscription storage subscription = subscriptions[subscriber];
-        return subscription.state;
+        return (
+            (
+                subscription.state == SubscriptionState.ACTIVE || 
+                subscription.state == SubscriptionState.EXPIRED 
+                ? true 
+                : false
+            ),
+            subscription.state
+        );
     }
     function activeUntil(address subscriber) external override view returns (uint64) {
         Subscription storage subscription = subscriptions[subscriber];
@@ -237,13 +245,13 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             _currentBlockTimestamp(),
             _currentBlockTimestamp(),
             desiredIntervals,
-            SubscriptionState.INACTIVE
+            SubscriptionState.EXPIRED
         );
 
-        //-
+        //---
         address[] memory subscribers = new address[](1);
         subscribers[0] = subscriber;
-        //-
+        //---
         uint16 count = _charge(subscribers, intervalsMin > 0 ? intervalsMin : 1); // charge the first intervalsMin intervals
         if (count > 0) {
             emit Subscribed(subscriber, _currentBlockTimestamp());
@@ -266,29 +274,36 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
+
             if (subscription.endTime > _currentBlockTimestamp()) {
+
                 // subscription is still active, no need to charge
                 continue;
             }
+
             if (subscription.endTime < _currentBlockTimestamp() - interval) {
-                // subscription was broken, needs to be restored first
-                _active(subscription, SubscriptionState.INACTIVE);
+
+                // subscription turn to BROKEN state
+                _active(subscription, SubscriptionState.BROKEN);
                 emit SubscriptionIsBroken(subscriber, _currentBlockTimestamp());
                 continue;
             }
             if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
+                // turn into the broken state, which can not be restored
                 _active(subscription, SubscriptionState.BROKEN);
                 emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
                 continue;
             }
             
-            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price, subscriber, recipient);
+            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * desiredIntervals, subscriber, recipient);
+
             if (result) {
                 _active(subscription, SubscriptionState.ACTIVE);
                 emit Charged(subscriber, subscription.price * desiredIntervals);
                 subscription.endTime += interval * desiredIntervals;
                 count++;
             } else {
+                _active(subscription, SubscriptionState.EXPIRED);
                 emit ChargeFailed(subscriber, subscription.price);
             }
             if (recipientImplementsHooks) {
@@ -300,7 +315,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     }
 
     function _active(Subscription storage subscription, SubscriptionState newState) private {
-        if (subscription.state == newState && newState == SubscriptionState.ACTIVE) {
+        if (subscription.state == newState) {
             return; // nothing to do
         }
         subscription.state = newState;
