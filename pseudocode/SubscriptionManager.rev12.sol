@@ -219,7 +219,7 @@ contract SubscriptionsManager {
         uint256 i, l=subscribers.length;
         for (i = 0; i<l; ++i) {
             address subscriber = subscribers[i];
-            Subscription subscription = subscriptions[subscriber];
+            Subscription storage subscription = subscriptions[subscriber];
             if (subscription.active) {
                 continue; // already active
             }

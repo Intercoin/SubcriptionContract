@@ -23,6 +23,9 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 
 const NO_COSTMANAGER = ZERO_ADDRESS;
+const SubscriptionState = {NONE:0, EXPIRED:1, ACTIVE:2, BROKEN:3};
+
+
 
 describe("Test", function () {
     const accounts = waffle.provider.getWallets();
@@ -33,7 +36,7 @@ describe("Test", function () {
     const david = accounts[4];
     const recipient = accounts[5];
     
-    
+    var tmp;
     describe("factory produce", function () {
         const salt    = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000000";
         const salt2   = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000001";
@@ -316,8 +319,306 @@ describe("Test", function () {
 
             
         });
+
+        it("sender should be an owner of instance, not factory!", async() => {
+            let tx = await SubscriptionsManagerFactory.connect(bob).produce(...p);
+
+            const rc = await tx.wait(); // 0ms, as tx is already confirmed
+            const event = rc.events.find(event => event.event === 'InstanceCreated');
+            const [instance,] = event.args;
+
+            let SubscriptionsManager = await ethers.getContractAt("SubscriptionsManagerUpgradeable",instance);
+            let ownerOfInstance = await SubscriptionsManager.owner();
+            expect(ownerOfInstance).not.to.be.eq(SubscriptionsManagerFactory.address);
+            expect(ownerOfInstance).not.to.be.eq(owner.address);
+            expect(ownerOfInstance).to.be.eq(bob.address);
+            
+        });
     });
 
+    describe("instance checks", function () {
+        const salt    = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000000";
+        const salt2   = "0x00112233445566778899AABBCCDDEEFF00000000000000000000000000000001";
+
+        var SubscriptionsManager;
+        var SubscriptionsManagerFactory;
+        var SubscriptionsManagerImpl;
+        
+        //var CommunityMock;
+        var releaseManager;
+        var erc20;
+        var p;
+
+        beforeEach("deploying", async() => {
+            let ReleaseManagerFactoryF = await ethers.getContractFactory("MockReleaseManagerFactory");
+            let ReleaseManagerF = await ethers.getContractFactory("MockReleaseManager");
+            
+            //CommunityMockF = await ethers.getContractFactory("CommunityMock");    
+            
+            let implementationReleaseManager    = await ReleaseManagerF.deploy();
+
+            let releaseManagerFactory   = await ReleaseManagerFactoryF.connect(owner).deploy(implementationReleaseManager.address);
+            let tx,rc,event,instance,instancesCount;
+            //
+            tx = await releaseManagerFactory.connect(owner).produce();
+            rc = await tx.wait(); // 0ms, as tx is already confirmed
+            event = rc.events.find(event => event.event === 'InstanceProduced');
+            [instance, instancesCount] = event.args;
+            releaseManager = await ethers.getContractAt("MockReleaseManager",instance);
+
+            let SubscriptionsManagerFactoryF = await ethers.getContractFactory("MockSubscriptionsManagerFactory");
+            let SubscriptionsManagerF = await ethers.getContractFactory("SubscriptionsManagerUpgradeable");
+
+            SubscriptionsManagerImpl = await SubscriptionsManagerF.connect(owner).deploy();
+            SubscriptionsManagerFactory = await SubscriptionsManagerFactoryF.connect(owner).deploy(SubscriptionsManagerImpl.address, NO_COSTMANAGER, releaseManager.address);
+
+            // 
+            const factoriesList = [SubscriptionsManagerFactory.address];
+            const factoryInfo = [
+                [
+                    1,//uint8 factoryIndex; 
+                    1,//uint16 releaseTag; 
+                    "0x53696c766572000000000000000000000000000000000000"//bytes24 factoryChangeNotes;
+                ]
+            ];
+
+            await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
+
+            let ERC20Factory = await ethers.getContractFactory("ERC20Mintable");
+            erc20 = await ERC20Factory.deploy("ERC20 Token", "ERC20");
+
+            
+        });
+
+        it("shouldn't produce if controller wasn't in our ecosystem", async() => {
+                let MockControllerF = await ethers.getContractFactory("MockController");
+                let MockController = await MockControllerF.connect(owner).deploy();
+                p = [
+                    86400, //uint32 interval,
+                    20, //uint16 intervalsMax,
+                    1, //uint16 intervalsMin,
+                    3, //uint8 retries,
+                    erc20.address, //address token,
+                    ONE_ETH, //uint256 price,
+                    MockController.address, //address controller,
+                    recipient.address, //address recipient,
+                    false //bool recipientImplementsHooks
+                ];
+                
+                await expect(SubscriptionsManagerFactory.connect(owner).produce(...p)).to.be.revertedWith(`UnauthorizedContract("${MockController.address}")`);
+        });
+        
+
+        describe("with external controller(contract)", function () {
+            var MockController;
+            var specialPrice = ONE_ETH.div(TEN);
+            var totalMintToAlice = ONE_ETH.mul(TEN);
+            var interval = 86400;
+
+            beforeEach("deploying", async() => {
+                let MockControllerF = await ethers.getContractFactory("MockController");
+                MockController = await MockControllerF.connect(owner).deploy();
+                p = [
+                    interval, //uint32 interval,
+                    20, //uint16 intervalsMax,
+                    1, //uint16 intervalsMin,
+                    3, //uint8 retries,
+                    erc20.address, //address token,
+                    ONE_ETH, //uint256 price,
+                    MockController.address, //address controller,
+                    recipient.address, //address recipient,
+                    false //bool recipientImplementsHooks
+                ];
+
+                await releaseManager.connect(owner).customRegisterInstance(MockController.address);
+
+                tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+                rc = await tx.wait(); // 0ms, as tx is already confirmed
+                event = rc.events.find(event => event.event === 'InstanceCreated');
+                [instance, instancesCount] = event.args;
+                SubscriptionsManager = await ethers.getContractAt("SubscriptionsManagerUpgradeable",instance);
+            });
+
+            it("new subscription shouldnt be active immediately if pay not consume", async() => {
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
+
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+            });
+
+            it("new subscription should be active immediately if pay-tokens is enough consumed", async() => {
+                await erc20.connect(owner).mint(alice.address, totalMintToAlice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
+
+                let aliceERC20TokenBalanceBefore = await erc20.balanceOf(alice.address);
+                
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
+
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+
+                let aliceERC20TokenBalanceAfter = await erc20.balanceOf(alice.address);
+                
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+
+                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(specialPrice);
+            });
+
+            it("new inactive subscription should be active after charge happens afterward", async() => {
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
+
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+
+                await erc20.connect(owner).mint(alice.address, totalMintToAlice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+            });
+
+            it("shouldnt consumed funds multiple times when charging a several time in one interval", async() => {
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+
+                await erc20.connect(owner).mint(alice.address, totalMintToAlice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
+                let aliceERC20TokenBalanceBefore = await erc20.balanceOf(alice.address);
+
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+
+                let aliceERC20TokenBalanceAfter = await erc20.balanceOf(alice.address);
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+                
+                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(specialPrice);
+            });
+
+            it("should consumed funds when interval pass", async() => {
+                await erc20.connect(owner).mint(alice.address, totalMintToAlice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
+
+                let aliceERC20TokenBalanceBefore = await erc20.balanceOf(alice.address);
+
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+
+                //pass another interval
+                await network.provider.send("evm_increaseTime", [interval])
+                await network.provider.send("evm_mine") // this one will have 02:00 PM as its timestamp
+
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                let aliceERC20TokenBalanceAfter = await erc20.balanceOf(alice.address);
+
+                // still active
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+                // expecting spent for 2 intervals
+                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(specialPrice.mul(TWO));
+            });
+
+            it("should turn subscription in EXPIRED state when funds have not been consumed", async() => {
+                await erc20.connect(owner).mint(alice.address, specialPrice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, specialPrice);
+
+                let aliceERC20TokenBalanceBefore = await erc20.balanceOf(alice.address);
+
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, specialPrice, FIVE);
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[0]).to.be.true;
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+
+                //pass another interval
+                await network.provider.send("evm_increaseTime", [interval+5]);
+                await network.provider.send("evm_mine");
+
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+
+                let aliceERC20TokenBalanceAfter = await erc20.balanceOf(alice.address);
+
+                // still active but status EXPIRE although didnt charge for second interval
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[0]).to.be.true;
+                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+
+                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(specialPrice);
+                
+            });
+            /*
+            it.only("should increase retries attempt when charge failed", async() => {
+
+let aliceSubscriptionRetriesAttemptBefore0 = await SubscriptionsManager.subscriptions(alice.address);
+                await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, ONE_ETH.div(TEN), FIVE);
+
+                let aliceSubscriptionChargeBefore = await SubscriptionsManager.isActive(alice.address);
+                let aliceSubscriptionRetriesAttemptBefore = await SubscriptionsManager.subscriptions(alice.address);
+
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+                let aliceSubscriptionChargeAfter = await SubscriptionsManager.isActive(alice.address);
+                let aliceSubscriptionRetriesAttemptAfter = await SubscriptionsManager.subscriptions(alice.address);
+console.log(aliceSubscriptionRetriesAttemptBefore0);
+console.log(aliceSubscriptionRetriesAttemptBefore);
+console.log(aliceSubscriptionRetriesAttemptAfter);
+
+                expect(aliceSubscriptionChargeBefore).to.be.eq(SubscriptionState.EXPIRED);
+                expect(aliceSubscriptionChargeAfter).to.be.eq(SubscriptionState.EXPIRED);
+                
+            });
+            */
+        });
+        describe("without controller", function () {
+            beforeEach("deploying", async() => {
+                p = [
+                    186400, //uint32 interval,
+                    20, //uint16 intervalsMax,
+                    1, //uint16 intervalsMin,
+                    3, //uint8 retries,
+                    erc20.address, //address token,
+                    ONE_ETH, //uint256 price,
+                    ZERO_ADDRESS, //address controller,
+                    recipient.address, //address recipient,
+                    false //bool recipientImplementsHooks
+                ];
+                
+                tx = await SubscriptionsManagerFactory.connect(owner).produce(...p);
+
+                rc = await tx.wait(); // 0ms, as tx is already confirmed
+                event = rc.events.find(event => event.event === 'InstanceCreated');
+                [instance, instancesCount] = event.args;
+                SubscriptionsManager = await ethers.getContractAt("SubscriptionsManagerUpgradeable",instance);
+            
+            });
+            // xit("x2", async() => {
+            //     let aliceSubscriptionBefore = await SubscriptionsManager.isActive(alice.address);
+            //     await SubscriptionsManager.connect(alice).subscribe(FIVE);
+            //     let aliceSubscriptionAfter = await SubscriptionsManager.isActive(alice.address);
+            // });
+        });
+
+        // xit("", async() => {});
+        // xit("", async() => {});
+        // xit("", async() => {});
+        // xit("", async() => {});
+        // xit("", async() => {});
+        // xit("", async() => {});
+    });
 /*
     describe("instance checks", function () {
         var SubscriptionsManager;
