@@ -284,6 +284,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             
             bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price, subscriber, recipient);
             if (result) {
+                _active(subscription, SubscriptionState.ACTIVE);
                 emit Charged(subscriber, subscription.price * desiredIntervals);
                 subscription.endTime += interval * desiredIntervals;
                 count++;
