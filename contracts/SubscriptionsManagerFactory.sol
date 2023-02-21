@@ -209,6 +209,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         ISubscriptionsManagerUpgradeable(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientImplementsHooks, costManager, msg.sender);
 
         //after initialize
+        Ownable(instance).transferOwnership(msg.sender);
         //----
 
         //-- register instance in release manager
