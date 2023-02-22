@@ -9,7 +9,7 @@ import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
-//import "hardhat/console.sol";
+
 contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
     uint32 public interval;
     uint16 public intervalsMax; // if 0, no max
@@ -349,6 +349,10 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             if (subscription.state == SubscriptionState.ACTIVE) {
                 continue; // already active
             }
+            if (subscription.state == SubscriptionState.BROKEN) {
+                continue; // broken. we will not renew broken subscription
+            }
+
             uint64 difference = uint64(_currentBlockTimestamp() - subscription.endTime);
             uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
             if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
