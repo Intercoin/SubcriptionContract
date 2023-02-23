@@ -33,7 +33,7 @@ interface ISubscriptionsManagerUpgradeable {
     error ControllerOnly(address controller);
     error OwnerOrCallerOnly();
     error NotSupported();
-
+    error invalidCommunitySettings();
 
     function initialize(
         uint32 interval,

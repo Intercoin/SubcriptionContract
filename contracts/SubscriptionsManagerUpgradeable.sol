@@ -165,6 +165,16 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     
     }
 
+    function setCommunity(address community_, uint8 roleId_) external onlyOwner {
+        if (roleId_ == 0 && community_ != address(0)) {
+            revert invalidCommunitySettings();
+        }
+        //todo: also need to check "can this contract grant and revoke roleId"
+
+        community = community_;
+        roleId = roleId_;
+    }
+
     function charge(address[] memory subscribers) external override ownerOrCaller {
         // if all callers fail to do this within an interval
         // then restore() will have to be called before charge()
@@ -236,7 +246,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         if (intervalsMax > 0 && desiredIntervals > intervalsMax) {
             revert SubscriptionTooLong();
         }
-        if (desiredIntervals == 0 && desiredIntervals < intervalsMin) {
+        if (desiredIntervals != 0 && desiredIntervals < intervalsMin) {
             revert SubscriptionTooShort();
         }
         subscriptions[subscriber] = Subscription(
@@ -303,10 +313,10 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                     ISubscriptionsHook(recipient).onCharge(token, getSubscriptionPrice(subscription));
                 }
             } else {
-                _active(subscription, SubscriptionState.EXPIRED);
                 if (subscription.state != SubscriptionState.EXPIRED) {
                     emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
                 }
+                _active(subscription, SubscriptionState.EXPIRED);
                 emit ChargeFailed(subscriber, getSubscriptionPrice(subscription));
             }
             
