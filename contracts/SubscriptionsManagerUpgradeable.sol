@@ -276,42 +276,47 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             Subscription storage subscription = subscriptions[subscriber];
 
             if (subscription.endTime > _currentBlockTimestamp()) {
-
                 // subscription is still active, no need to charge
                 continue;
             }
+            // will turn into expired state after trying to charge
+            // if (subscription.endTime > _currentBlockTimestamp() - interval*retries) {
+            //     // subscription turn to EXPIRED state, need to charge or manually restore
+            //     _active(subscription, SubscriptionState.EXPIRED);
+            //     emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+            //     continue;
+            // }
 
-            if (subscription.endTime < _currentBlockTimestamp() - interval) {
-
-                // subscription turn to BROKEN state
-                _active(subscription, SubscriptionState.BROKEN);
-                emit SubscriptionIsBroken(subscriber, _currentBlockTimestamp());
+            if (subscriptionActualize(subscription)) {
                 continue;
             }
-            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
-                // turn into the broken state, which can not be restored
-                _active(subscription, SubscriptionState.BROKEN);
-                emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
-                continue;
-            }
-            
-            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * desiredIntervals, subscriber, recipient);
+
+            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, getSubscriptionPrice(subscription) * desiredIntervals, subscriber, recipient);
 
             if (result) {
                 _active(subscription, SubscriptionState.ACTIVE);
-                emit Charged(subscriber, subscription.price * desiredIntervals);
+                emit Charged(subscriber, getSubscriptionPrice(subscription) * desiredIntervals);
                 subscription.endTime += interval * desiredIntervals;
                 count++;
+
+                if (recipientImplementsHooks) {
+                    ISubscriptionsHook(recipient).onCharge(token, getSubscriptionPrice(subscription));
+                }
             } else {
                 _active(subscription, SubscriptionState.EXPIRED);
-                emit ChargeFailed(subscriber, subscription.price);
+                if (subscription.state != SubscriptionState.EXPIRED) {
+                    emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                }
+                emit ChargeFailed(subscriber, getSubscriptionPrice(subscription));
             }
-            if (recipientImplementsHooks) {
-                ISubscriptionsHook(recipient).onCharge(token, price);
-            }
+            
         }
         
         
+    }
+
+    function getSubscriptionPrice(Subscription storage subscription) private view returns(uint256) {
+        return (subscription.price == 0) ? price : subscription.price;
     }
 
     function _active(Subscription storage subscription, SubscriptionState newState) private {
@@ -335,7 +340,30 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             ICommunity(community).revokeRoles(_s, _r);
         }
     }
-
+    /**
+    // try to check:
+    // - is user interval expired?
+    // - is subscription max interval expire?
+    // - is exceed retries attempt?
+    // - 
+    */
+    function subscriptionActualize(Subscription storage subscription) private returns(bool skip){
+        if (subscription.state == SubscriptionState.EXPIRED) {
+            if (
+                // subscription turn to BROKEN state as reached maximum retries attempt
+                (subscription.endTime < _currentBlockTimestamp() - interval*retries) || 
+                // or exceed interval subscription
+                (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals)
+            ) {
+                // turn into the broken state, which can not be restored
+                _active(subscription, SubscriptionState.BROKEN);
+                emit SubscriptionIsBroken(subscription.subscriber, _currentBlockTimestamp());
+                //continue;
+                skip = true;
+            }
+        }
+    }
+   
     function _restore(
         address[] memory subscribers, 
         bool ownerOrCaller_
@@ -346,29 +374,41 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
-            if (subscription.state == SubscriptionState.ACTIVE) {
-                continue; // already active
+
+           
+            if (
+                subscription.state == SubscriptionState.NONE ||     // if not created before
+                subscription.state == SubscriptionState.ACTIVE ||   // or already active
+                subscription.state == SubscriptionState.BROKEN      // or already broken
+            ) {
+                continue; 
             }
-            if (subscription.state == SubscriptionState.BROKEN) {
-                continue; // broken. we will not renew broken subscription
+            
+            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
+                emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                
             }
 
             uint64 difference = uint64(_currentBlockTimestamp() - subscription.endTime);
             uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
             if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
                 emit RetriesExpired(subscriber, _currentBlockTimestamp(), diffIntervals);
-                continue;
+                
             }
-            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
-                emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+
+            // and turn to broken if
+            // - is user interval expired?
+            // - is subscription max interval expire?
+            // - is exceed retries attempt?
+            // - 
+            if (subscriptionActualize(subscription)) {
                 continue;
             }
 
-            uint256 amount = subscription.price;
-            if (amount == 0) {
-                amount = price;
-            }
+            
 
+            uint256 amount = getSubscriptionPrice(subscription);
+            
             bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * diffIntervals, subscriber, recipient);
 
             if (result) {
