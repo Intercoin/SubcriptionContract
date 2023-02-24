@@ -4,8 +4,8 @@ pragma solidity ^0.8.11;
 import "../SubscriptionsManagerUpgradeable.sol";
 
 contract MockSubscriptionsManagerUpgradeable is SubscriptionsManagerUpgradeable {
-    function setRecipientImplementsHooks(bool b) public {
-        recipientImplementsHooks = b;
+    function setHook(address hook_) public {
+        hook = hook_;
     }
 
     function setRecipient(address addr) public {

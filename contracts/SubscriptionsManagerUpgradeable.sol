@@ -19,7 +19,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     uint256 public price; // the price to charge
 
     address recipient;
-    bool recipientImplementsHooks; // whether recipient is a contract that implements onTransfer, etc.
+    address hook;
 
     mapping (address => Subscription) public subscriptions;
     mapping (address => bool) public callers;
@@ -69,7 +69,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     * @param price_ price for subsription on single interval
     * @param controller_ [optional] controller address
     * @param recipient_ address which will obtain pay for subscription
-    * @param recipientImplementsHooks_ if true then contract expected recipient as contract and will try to call ISubscriptionsHook(recipient).onCharge
+    * @param hook_  if present then try to call hook.onCharge 
     * @param costManager_ costManager address
     * @param producedBy_ producedBy address
     * @custom:calledby factory
@@ -84,7 +84,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         uint256 price_,
         address controller_,
         address recipient_,
-        bool recipientImplementsHooks_,
+        address hook_,
         address costManager_,
         address producedBy_
     ) 
@@ -109,7 +109,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         price = price_;
         controller = controller_;
         recipient = recipient_;
-        recipientImplementsHooks = recipientImplementsHooks_;
+        hook = hook_;
 
         _accountForOperation(
             OPERATION_INITIALIZE << OPERATION_SHIFT_BITS,
@@ -309,8 +309,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                 subscription.endTime += interval * desiredIntervals;
                 count++;
 
-                if (recipientImplementsHooks) {
-                    ISubscriptionsHook(recipient).onCharge(token, getSubscriptionPrice(subscription));
+                if (hook != address(0)) {
+                    ISubscriptionsHook(hook).onCharge(token, getSubscriptionPrice(subscription));
                 }
             } else {
                 if (subscription.state != SubscriptionState.EXPIRED) {

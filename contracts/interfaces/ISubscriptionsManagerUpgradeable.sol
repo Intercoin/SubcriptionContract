@@ -44,7 +44,7 @@ interface ISubscriptionsManagerUpgradeable {
         uint256 price,
         address controller,
         address recipient,
-        bool recipientImplementsHooks,
+        address hook,
         address costManager,
         address producedBy
     ) external;
