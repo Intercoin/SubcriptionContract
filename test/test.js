@@ -551,7 +551,7 @@ describe("Test", function () {
                 expect(recipientERC20TokenBalanceAfter.sub(recipientERC20TokenBalanceBefore)).to.be.eq(subscriptionPrice.mul(intervalsMin));
             });
 
-            it("test hook. should call onCharge", async() => {
+            it("hook. should call onCharge", async() => {
                 let MockSubscriptionsHookF = await ethers.getContractFactory("MockSubscriptionsHook");
                 let MockSubscriptionsHook = await MockSubscriptionsHookF.connect(owner).deploy();
                 
@@ -573,6 +573,34 @@ describe("Test", function () {
 
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+
+            });
+            it("hook. revert subscribe action if onCharge was revert", async() => {
+                let MockSubscriptionsHookBadF = await ethers.getContractFactory("MockSubscriptionsHookBad");
+                let MockSubscriptionsHookBad = await MockSubscriptionsHookBadF.connect(owner).deploy();
+                
+                await SubscriptionsManager.connect(owner).setHook(MockSubscriptionsHookBad.address);
+
+                await erc20.connect(owner).mint(alice.address, totalMintToAlice);
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
+
+                expect(await MockSubscriptionsHookBad.chargeCallbackTriggered()).to.be.false;
+                if (controllerUsed) {
+                    await expect(
+                        MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE)
+                    ).to.be.revertedWith('HappensSmthUnexpected()');
+                } else {
+                    await expect(
+                        SubscriptionsManager.connect(alice).subscribe(FIVE)
+                    ).to.be.revertedWith('HappensSmthUnexpected()');
+                }
+                expect(await MockSubscriptionsHookBad.chargeCallbackTriggered()).to.be.false;
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
             });
 
