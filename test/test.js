@@ -23,6 +23,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 
 const NO_COSTMANAGER = ZERO_ADDRESS;
+const NO_HOOK = ZERO_ADDRESS;
 const SubscriptionState = {NONE:0, EXPIRED:1, ACTIVE:2, BROKEN:3};
 
 
@@ -97,7 +98,7 @@ describe("Test", function () {
                 ONE_ETH, //uint256 price,
                 ZERO_ADDRESS, //address controller,
                 recipient.address, //address recipient,
-                false //bool recipientImplementsHooks
+                NO_HOOK //bool recipientImplementsHooks
             ];
             
             // rc = await tx.wait(); // 0ms, as tx is already confirmed
@@ -202,7 +203,7 @@ describe("Test", function () {
             pWithWrongControllerAsEOAUser = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 recipient.address, //address controller,
-                recipient.address, false
+                recipient.address, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsEOAUser)
@@ -211,7 +212,7 @@ describe("Test", function () {
             pWithWrongControllerAsERC20 = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 erc20.address, //address controller,
-                recipient.address, false
+                recipient.address, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsERC20)
@@ -400,7 +401,7 @@ describe("Test", function () {
                     ONE_ETH, //uint256 price,
                     MockController.address, //address controller,
                     recipient.address, //address recipient,
-                    false //bool recipientImplementsHooks
+                    NO_HOOK //bool recipientImplementsHooks
                 ];
                 
                 await expect(SubscriptionsManagerFactory.connect(owner).produce(...p)).to.be.revertedWith(`UnauthorizedContract("${MockController.address}")`);
@@ -432,7 +433,7 @@ describe("Test", function () {
                     commonPrice, //uint256 price,
                     controllerUsed ? MockController.address : ZERO_ADDRESS, //address controller,
                     recipient.address, //address recipient,
-                    false //bool recipientImplementsHooks
+                    NO_HOOK //bool recipientImplementsHooks
                 ];
 
                 if (controllerUsed) {
@@ -550,35 +551,29 @@ describe("Test", function () {
                 expect(recipientERC20TokenBalanceAfter.sub(recipientERC20TokenBalanceBefore)).to.be.eq(subscriptionPrice.mul(intervalsMin));
             });
 
-            it("test recipientImplementsHooks should send subscription pay to recipient", async() => {
-                let MockRecipientHookF = await ethers.getContractFactory("MockRecipientHook");
-                let MockRecipientHook = await MockRecipientHookF.connect(owner).deploy();
-                await SubscriptionsManager.connect(owner).setRecipientImplementsHooks(true);
-                await SubscriptionsManager.connect(owner).setRecipient(MockRecipientHook.address);
+            it("test hook. should call onCharge", async() => {
+                let MockSubscriptionsHookF = await ethers.getContractFactory("MockSubscriptionsHook");
+                let MockSubscriptionsHook = await MockSubscriptionsHookF.connect(owner).deploy();
+                
+                await SubscriptionsManager.connect(owner).setHook(MockSubscriptionsHook.address);
 
                 await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                 await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
 
-                let recipientERC20TokenBalanceBefore = await erc20.balanceOf(MockRecipientHook.address);
-                
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
-                expect(await MockRecipientHook.chargeCallbackTriggered()).to.be.false;
+                expect(await MockSubscriptionsHook.chargeCallbackTriggered()).to.be.false;
                 if (controllerUsed) {
                     await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                 } else {
                     await SubscriptionsManager.connect(alice).subscribe(FIVE);
                 }
-                expect(await MockRecipientHook.chargeCallbackTriggered()).to.be.true;
-
-
-                let recipientERC20TokenBalanceAfter = await erc20.balanceOf(MockRecipientHook.address);
+                expect(await MockSubscriptionsHook.chargeCallbackTriggered()).to.be.true;
 
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
 
-                expect(recipientERC20TokenBalanceAfter.sub(recipientERC20TokenBalanceBefore)).to.be.eq(subscriptionPrice.mul(intervalsMin));
             });
 
             it("new subscription shouldnt be too short than minimum interval", async() => {

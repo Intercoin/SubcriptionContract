@@ -3,10 +3,11 @@ pragma solidity ^0.8.11;
 
 import "../interfaces/ISubscriptionsHook.sol";
 
-contract MockRecipientHook is ISubscriptionsHook {
-    bool public chargeCallbackTriggered = false;
+contract MockSubscriptionsHookBad is ISubscriptionsHook {
+    error HappensSmthUnexpected();
+    
     function onCharge(address token, uint256 amount) external {
-        chargeCallbackTriggered = true;
+        revert HappensSmthUnexpected();
     }
 
 }
