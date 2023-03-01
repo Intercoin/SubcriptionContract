@@ -178,7 +178,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     function charge(address[] memory subscribers) external override ownerOrCaller {
         // if all callers fail to do this within an interval
         // then restore() will have to be called before charge()
-        _charge(subscribers, 1);
+        _charge(subscribers, 1, false);
     }
 
     function restore() external override {
@@ -262,7 +262,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         address[] memory subscribers = new address[](1);
         subscribers[0] = subscriber;
         //---
-        uint16 count = _charge(subscribers, intervalsMin > 0 ? intervalsMin : 1); // charge the first intervalsMin intervals
+        uint16 count = _charge(subscribers, intervalsMin > 0 ? intervalsMin : 1, true); // charge the first intervalsMin intervals
         if (count > 0) {
             emit Subscribed(subscriber, _currentBlockTimestamp());
         }
@@ -273,7 +273,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     // requiring them to be restored
     function _charge(
         address[] memory subscribers, 
-        uint16 desiredIntervals
+        uint16 desiredIntervals,
+        bool firstTime
     ) 
         private 
         returns(uint16 count)
@@ -313,11 +314,17 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                     ISubscriptionsHook(hook).onCharge(token, getSubscriptionPrice(subscription));
                 }
             } else {
-                if (subscription.state != SubscriptionState.EXPIRED) {
-                    emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                if (firstTime) {
+                    revert SubscriptionCantStart();
+                } else {
+                        
+                    if (subscription.state != SubscriptionState.EXPIRED) {
+                        emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                    }
+                    _active(subscription, SubscriptionState.EXPIRED);
+                    emit ChargeFailed(subscriber, getSubscriptionPrice(subscription));
+                
                 }
-                _active(subscription, SubscriptionState.EXPIRED);
-                emit ChargeFailed(subscriber, getSubscriptionPrice(subscription));
             }
             
         }

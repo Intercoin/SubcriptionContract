@@ -34,6 +34,7 @@ interface ISubscriptionsManagerUpgradeable {
     error OwnerOrCallerOnly();
     error NotSupported();
     error invalidCommunitySettings();
+    error SubscriptionCantStart();
 
     function initialize(
         uint32 interval,

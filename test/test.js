@@ -448,18 +448,16 @@ describe("Test", function () {
                 SubscriptionsManager = await ethers.getContractAt("MockSubscriptionsManagerUpgradeable",instance);
             });
             
-            it("new subscription should be active immediately but will start in a status expired if pay not consume", async() => {
+            it("new subscription shouldnt be active immediately but tx will revert with `SubscriptionCantStart()` if pay not consume", async() => {
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
                 if (controllerUsed) {
-                    await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
+                    await expect(MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE)).to.be.revertedWith("SubscriptionCantStart()");
                 } else {
-                    await SubscriptionsManager.connect(alice).subscribe(FIVE);
+                    await expect(SubscriptionsManager.connect(alice).subscribe(FIVE)).to.be.revertedWith("SubscriptionCantStart()");
                 }
 
-                tmp = await SubscriptionsManager.isActive(alice.address);
-                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
             });
             it("should add caller only by owner", async() => {
                 expect(await SubscriptionsManager.callers(bob.address)).to.be.false;
@@ -632,22 +630,38 @@ describe("Test", function () {
                 
             });
 
-            it("new inactive subscription should be active after charge happens afterward", async() => {
+            it("subscription should prolong subscribe active after charge happens afterward", async() => {
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
+
+                await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
 
                 if (controllerUsed) {
                     await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                 } else {
                     await SubscriptionsManager.connect(alice).subscribe(FIVE);
                 }
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
+
+                //pass intervals
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+
+                await network.provider.send("evm_increaseTime", [10]);
+                await network.provider.send("evm_mine");
+
+                await SubscriptionsManager.connect(owner).charge([alice.address]);
+
+                tmp = await SubscriptionsManager.isActive(alice.address);
+                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
 
                 await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                 await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
 
-                tmp = await SubscriptionsManager.isActive(alice.address);
-                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
-                
                 await SubscriptionsManager.connect(owner).charge([alice.address]);
 
                 tmp = await SubscriptionsManager.isActive(alice.address);
@@ -655,11 +669,23 @@ describe("Test", function () {
             });
 
             it("shouldnt consumed funds multiple times when charging a several time in one interval", async() => {
+                
+                await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
+
                 if (controllerUsed) {
                     await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                 } else {
                     await SubscriptionsManager.connect(alice).subscribe(FIVE);
                 }
+                //pass intervals
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+
+                await network.provider.send("evm_increaseTime", [10]);
+                await network.provider.send("evm_mine");
 
                 await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                 await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
@@ -707,8 +733,9 @@ describe("Test", function () {
             });
 
             it("should turn subscription in EXPIRED state when funds have not been consumed", async() => {
-                await erc20.connect(owner).mint(alice.address, subscriptionPrice);
-                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice);
+                
+                await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
 
                 let aliceERC20TokenBalanceBefore = await erc20.balanceOf(alice.address);
                 if (controllerUsed) {
@@ -722,8 +749,13 @@ describe("Test", function () {
                 expect(tmp[0]).to.be.true;
                 expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
 
-                //pass another interval
-                await network.provider.send("evm_increaseTime", [interval+5]);
+                //pass intervals
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+                await network.provider.send("evm_increaseTime", [interval]);
+                await network.provider.send("evm_mine");
+
+                await network.provider.send("evm_increaseTime", [10]);
                 await network.provider.send("evm_mine");
 
                 await SubscriptionsManager.connect(owner).charge([alice.address]);
@@ -735,7 +767,7 @@ describe("Test", function () {
                 expect(tmp[0]).to.be.true;
                 expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
 
-                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(subscriptionPrice);
+                expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(subscriptionPrice.mul(intervalsMin));
                 
             });
 
@@ -839,6 +871,9 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
+                    await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                    await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
+
                     if (controllerUsed) {
                         await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                     } else {
@@ -846,8 +881,18 @@ describe("Test", function () {
                     }
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
 
+                    //pass intervals
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+
+                    await network.provider.send("evm_increaseTime", [10]);
+                    await network.provider.send("evm_mine");
+                    await SubscriptionsManager.connect(owner).charge([alice.address]);
+                    
                     //cancel
                     await SubscriptionsManager.connect(alice)["cancel()"]();
 
@@ -951,12 +996,25 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
+                    await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                    await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
+
                     if (controllerUsed) {
                         await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                     } else {
                         await SubscriptionsManager.connect(alice).subscribe(FIVE);
                     }
                     
+                    //pass intervals
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+
+                    await network.provider.send("evm_increaseTime", [10]);
+                    await network.provider.send("evm_mine");
+                    await SubscriptionsManager.connect(owner).charge([alice.address]);
+
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
 
@@ -984,12 +1042,25 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
+                    await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                    await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
+
                     if (controllerUsed) {
                         await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                     } else {
                         await SubscriptionsManager.connect(alice).subscribe(FIVE);
                     }
-                    
+
+                    //pass intervals
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+
+                    await network.provider.send("evm_increaseTime", [10]);
+                    await network.provider.send("evm_mine");
+                    await SubscriptionsManager.connect(owner).charge([alice.address]);
+
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
 
@@ -1013,12 +1084,25 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
+                    await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                    await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
+
                     if (controllerUsed) {
                         await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
                     } else {
                         await SubscriptionsManager.connect(alice).subscribe(FIVE);
                     }
                     
+                    //pass intervals
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_mine");
+
+                    await network.provider.send("evm_increaseTime", [10]);
+                    await network.provider.send("evm_mine");
+                    await SubscriptionsManager.connect(owner).charge([alice.address]);
+
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
 
@@ -1105,8 +1189,8 @@ describe("Test", function () {
                         //make snapshot
                         snapId = await ethers.provider.send('evm_snapshot', []);
 
-                        await erc20.connect(owner).mint(alice.address, subscriptionPrice);
-                        await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice);
+                        await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
+                        await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
 
                         if (controllerUsed) {
                             await MockController.connect(alice).subscribeViaController(SubscriptionsManager.address, alice.address, subscriptionPrice, FIVE);
@@ -1115,8 +1199,13 @@ describe("Test", function () {
                         }
                         await SubscriptionsManager.connect(owner).charge([alice.address]);
 
-                        //pass another interval
-                        await network.provider.send("evm_increaseTime", [interval+5]);
+                        //pass intervals
+                        await network.provider.send("evm_increaseTime", [interval]);
+                        await network.provider.send("evm_mine");
+                        await network.provider.send("evm_increaseTime", [interval]);
+                        await network.provider.send("evm_mine");
+
+                        await network.provider.send("evm_increaseTime", [10]);
                         await network.provider.send("evm_mine");
 
                         // try to charge  but approve are zero
