@@ -10,6 +10,10 @@ import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
 
+interface INFTOwner {
+    function ownerOf(uint256 tokenId) external returns(address);
+}
+
 contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
     uint32 public interval;
     uint16 public intervalsMax; // if 0, no max
@@ -19,6 +23,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     uint256 public price; // the price to charge
 
     address recipient;
+    uint256 recipientTokenId;
+    
     address hook;
 
     mapping (address => Subscription) public subscriptions;
@@ -69,6 +75,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     * @param price_ price for subsription on single interval
     * @param controller_ [optional] controller address
     * @param recipient_ address which will obtain pay for subscription
+    * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook_  if present then try to call hook.onCharge 
     * @param costManager_ costManager address
     * @param producedBy_ producedBy address
@@ -84,6 +91,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         uint256 price_,
         address controller_,
         address recipient_,
+        uint256 recipientTokenId_,
         address hook_,
         address costManager_,
         address producedBy_
@@ -109,6 +117,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         price = price_;
         controller = controller_;
         recipient = recipient_;
+        recipientTokenId = recipientTokenId_;
         hook = hook_;
 
         _accountForOperation(
@@ -302,7 +311,10 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                 continue;
             }
 
-            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, getSubscriptionPrice(subscription) * desiredIntervals, subscriber, recipient);
+            bool result = ISubscriptionsManagerFactory(factory).doCharge(
+                token, getSubscriptionPrice(subscription) * desiredIntervals, subscriber,
+                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
+            );
 
             if (result) {
                 _active(subscription, SubscriptionState.ACTIVE);
@@ -426,7 +438,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
 
             uint256 amount = getSubscriptionPrice(subscription);
             
-            bool result = ISubscriptionsManagerFactory(factory).doCharge(token, subscription.price * diffIntervals, subscriber, recipient);
+            bool result = ISubscriptionsManagerFactory(factory)
+            .doCharge(
+                token, subscription.price * diffIntervals, subscriber,
+                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
+            );
 
             if (result) {
                 _active(subscription, SubscriptionState.ACTIVE);
