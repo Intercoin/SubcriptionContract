@@ -146,7 +146,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         
         Subscription storage subscription = subscriptions[_msgSender()];
         if (subscription.state == SubscriptionState.ACTIVE) {
-            _active(subscription, SubscriptionState.BROKEN);
+            _active(subscription, SubscriptionState.CANCELED);
             subscription.endTime = _currentBlockTimestamp();
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
         }
@@ -157,7 +157,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         for (uint256 i = 0; i < l; i++) {
             Subscription storage subscription = subscriptions[subscribers[i]];
             if (subscription.state == SubscriptionState.ACTIVE) {
-                _active(subscription, SubscriptionState.BROKEN);
+                _active(subscription, SubscriptionState.CANCELED);
                 subscription.endTime = _currentBlockTimestamp();
             }
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
@@ -269,7 +269,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     }
 
     // doesn't just charge but updates valid subscriptions
-    // to be either extended or broken and set endTime
+    // to be either extended or canceled and set endTime
     // requiring them to be restored
     function _charge(
         address[] memory subscribers, 
@@ -367,14 +367,14 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     function subscriptionActualize(Subscription storage subscription) private returns(bool skip){
         if (subscription.state == SubscriptionState.EXPIRED) {
             if (
-                // subscription turn to BROKEN state as reached maximum retries attempt
+                // subscription turn to CANCELED state as reached maximum retries attempt
                 (subscription.endTime < _currentBlockTimestamp() - interval*retries) || 
                 // or exceed interval subscription
                 (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals)
             ) {
-                // turn into the broken state, which can not be restored
-                _active(subscription, SubscriptionState.BROKEN);
-                emit SubscriptionIsBroken(subscription.subscriber, _currentBlockTimestamp());
+                // turn into the canceled state, which can not be restored
+                _active(subscription, SubscriptionState.CANCELED);
+                emit SubscriptionIsCanceled(subscription.subscriber, _currentBlockTimestamp());
                 //continue;
                 skip = true;
             }
@@ -396,7 +396,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             if (
                 subscription.state == SubscriptionState.NONE ||     // if not created before
                 subscription.state == SubscriptionState.ACTIVE ||   // or already active
-                subscription.state == SubscriptionState.BROKEN      // or already broken
+                subscription.state == SubscriptionState.CENCELED    // or already canceled
             ) {
                 continue; 
             }
@@ -413,7 +413,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                 
             }
 
-            // and turn to broken if
+            // and turn to canceled if
             // - is user interval expired?
             // - is subscription max interval expire?
             // - is exceed retries attempt?
