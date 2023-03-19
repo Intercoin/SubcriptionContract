@@ -81,7 +81,8 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     * @param token token address to charge
     * @param price price for subsription on single interval
     * @param controller [optional] controller address
-    * @param recipient address which will obtain pay for subscription
+    * @param recipient address which will receive the subscription payments
+    * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
     * @return instance address of created instance `SubscriptionsManager`
     * @custom:shortd creation SubscriptionsManager instance
