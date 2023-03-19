@@ -7,13 +7,13 @@ interface ISubscriptionsManagerUpgradeable {
         NONE,       // Subscription notfound. its like default value for subscription state
         EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
         ACTIVE,     // Active subscription
-        BROKEN      // Becomes broken after failed retries to charge 
+        CANCELED     // Becomes canceled after failed retries to charge 
     }
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
         address subscriber;
         uint64 startTime;
-        uint64 endTime; // because it was canceled or broken, otherwise it is when it expires
+        uint64 endTime; // because it was canceled, otherwise it is when it expires
         uint16 intervals;
         SubscriptionState state;
     }
@@ -24,7 +24,7 @@ interface ISubscriptionsManagerUpgradeable {
     event Charged(address subscriber, uint256 amount);
     event ChargeFailed(address subscriber, uint256 amount);
     event RetriesExpired(address subscriber, uint64 tryTime, uint64 retries);
-    event SubscriptionIsBroken(address subscriber, uint64 chargeTime);
+    event SubscriptionIsCanceled(address subscriber, uint64 chargeTime);
     event SubscriptionExpired(address subscriber, uint64 chargeTime);
     event StateChanged(address subscriber, SubscriptionState newState);
 
