@@ -74,7 +74,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     * @param token_ token address to charge
     * @param price_ price for subsription on single interval
     * @param controller_ [optional] controller address
-    * @param recipient_ address which will obtain pay for subscription
+    * @param recipient address which will receive the subscription payments
     * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook_  if present then try to call hook.onCharge 
     * @param costManager_ costManager address
@@ -130,6 +130,15 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     ///////////////////////////////////
     // external 
     ///////////////////////////////////
+
+
+   /**
+    * @dev called by authorized controller contracts to start subscriptions with custom prices
+    * @param subscriber the address that will be paying
+    * @param customPrice custom price for this subscription
+    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+    * @custom:calledby controller
+    */
     function subscribeFromController(
         address subscriber, 
         uint256 customPrice, 
@@ -141,6 +150,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     {
         _subscribe(subscriber, customPrice, desiredIntervals);
     }
+
+   /**
+    * @dev starts a recurring subscription for msg.sender at the default price
+    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+    */
     function subscribe(
         uint16 desiredIntervals
     ) 
@@ -150,7 +164,9 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         _subscribe(_msgSender(), price, desiredIntervals);
     }
 
-    
+   /**
+    * @dev cancels subscription that is currently active for the msg.sender
+    */
     function cancel() external override {
         
         Subscription storage subscription = subscriptions[_msgSender()];
@@ -161,6 +177,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         }
     }
 
+   /**
+    * @dev can be called by owner to unilateraly cancel multiple subscriptions
+    * @param subscribers the addresses whose subscriptions to cancel
+    * @custom:calledby owner
+    */
     function cancel(address[] memory subscribers) external override onlyOwner {
         uint256 l = subscribers.length;
         for (uint256 i = 0; i < l; i++) {
@@ -174,6 +195,12 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     
     }
 
+   /**
+    * @dev updates any CommunityContract in which roles will be granted and revoked
+    * @param community the address of the community contract
+    * @param roleId the role to grant/revoke, note that this SubscriptionContract should have a role that is able to grant/revoke roleId
+    * @custom:calledby owner
+    */
     function setCommunity(address community_, uint8 roleId_) external onlyOwner {
         if (roleId_ == 0 && community_ != address(0)) {
             revert invalidCommunitySettings();
@@ -184,42 +211,75 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         roleId = roleId_;
     }
 
+   /**
+    * @dev called by authorized controller contracts to start subscriptions with custom prices
+    * @param subscriber the address that will be paying
+    * @param customPrice custom price for this subscription
+    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+    * @custom:calledby owner or caller
+    */
     function charge(address[] memory subscribers) external override ownerOrCaller {
         // if all callers fail to do this within an interval
         // then restore() will have to be called before charge()
         _charge(subscribers, 1, false);
     }
 
+   /**
+    * @dev attempt to charge and restore a lapsed subscription from msg.sender
+    */
     function restore() external override {
         address[] memory subscribers = new address[](1);
         subscribers[0] = _msgSender();
         _restore(subscribers, false);
     }
+
+   /**
+    * @dev restore subscription
+    * @param subscribers array of subscribers for whom to attempt to charge and restore a lapsed subscription
+    * @custom:calledby owner or one of the added callers
+    */
     function restore(address[] memory subscribers) external override ownerOrCaller{
         _restore(subscribers, true);
     }
 
-    
+   /**
+    * @dev add an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
+    * @param caller the address of the caller
+    */
     function addCaller(address caller) external override onlyOwner {
         callers[caller] = true;
     }
+    
+   /**
+    * @dev remove an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
+    * @param caller the address of the caller
+    */
     function removeCaller(address caller) external override onlyOwner {
         //callers[caller] = false;
         delete callers[caller];
     }
 
+   /**
+    * @dev find out the state of a subscriber
+    * @param subscriber the address of the subscriber
+    * @return active whether the subscription is still active
+    * @return state the state of the subscription (NONE, ACTIVE, EXPRIED, CANCELED)
+    */
     function isActive(address subscriber) external override view returns (bool, SubscriptionState) {
         Subscription storage subscription = subscriptions[subscriber];
         return (
             (
-                subscription.state == SubscriptionState.ACTIVE || 
-                subscription.state == SubscriptionState.EXPIRED 
-                ? true 
-                : false
+                subscription.state == SubscriptionState.ACTIVE
             ),
             subscription.state
         );
     }
+
+   /**
+    * @dev find out the timestamp of when a subscription expires
+    * @param subscriber the address of the subscriber
+    * @return timestamp seconds since Unix epoch
+    */
     function activeUntil(address subscriber) external override view returns (uint64) {
         Subscription storage subscription = subscriptions[subscriber];
         return subscription.endTime;
@@ -307,7 +367,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             //     continue;
             // }
 
-            if (subscriptionActualize(subscription)) {
+            if (_subscriptionActualize(subscription)) {
                 continue;
             }
 
@@ -376,7 +436,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     // - is exceed retries attempt?
     // - 
     */
-    function subscriptionActualize(Subscription storage subscription) private returns(bool skip){
+    function _subscriptionActualize(Subscription storage subscription) private returns(bool skip){
         if (subscription.state == SubscriptionState.EXPIRED) {
             if (
                 // subscription turn to CANCELED state as reached maximum retries attempt
@@ -430,7 +490,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             // - is subscription max interval expire?
             // - is exceed retries attempt?
             // - 
-            if (subscriptionActualize(subscription)) {
+            if (_subscriptionActualize(subscription)) {
                 continue;
             }
 
