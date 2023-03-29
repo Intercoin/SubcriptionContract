@@ -11,11 +11,12 @@ interface ISubscriptionsManagerUpgradeable {
 
 
         NONE,   //
-        ACTIVE, //
         LAPSED, // (when active in grace period)
+        ACTIVE, //
         BROKEN, // (when user didnt pay)
         EXPIRED,// (when max intervals exceeded)
         CANCELED// (when user canceled)
+        
     }
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price

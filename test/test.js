@@ -25,7 +25,7 @@ const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 const NO_COSTMANAGER = ZERO_ADDRESS;
 const NO_HOOK = ZERO_ADDRESS;
 const SubscriptionState = {NONE:0, EXPIRED:1, ACTIVE:2, BROKEN:3};
-
+const NO_RECIPIENT_TOKEN_ID = 0;
 
 
 describe("Test", function () {
@@ -98,6 +98,7 @@ describe("Test", function () {
                 ONE_ETH, //uint256 price,
                 ZERO_ADDRESS, //address controller,
                 recipient.address, //address recipient,
+                NO_RECIPIENT_TOKEN_ID,
                 NO_HOOK //bool recipientImplementsHooks
             ];
             
@@ -203,7 +204,7 @@ describe("Test", function () {
             pWithWrongControllerAsEOAUser = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 recipient.address, //address controller,
-                recipient.address, NO_HOOK
+                recipient.address, NO_RECIPIENT_TOKEN_ID, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsEOAUser)
@@ -212,7 +213,7 @@ describe("Test", function () {
             pWithWrongControllerAsERC20 = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 erc20.address, //address controller,
-                recipient.address, NO_HOOK
+                recipient.address, NO_RECIPIENT_TOKEN_ID, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsERC20)
@@ -401,6 +402,7 @@ describe("Test", function () {
                     ONE_ETH, //uint256 price,
                     MockController.address, //address controller,
                     recipient.address, //address recipient,
+                    NO_RECIPIENT_TOKEN_ID,
                     NO_HOOK //bool recipientImplementsHooks
                 ];
                 
@@ -433,6 +435,7 @@ describe("Test", function () {
                     commonPrice, //uint256 price,
                     controllerUsed ? MockController.address : ZERO_ADDRESS, //address controller,
                     recipient.address, //address recipient,
+                    NO_RECIPIENT_TOKEN_ID,
                     NO_HOOK //bool recipientImplementsHooks
                 ];
 
