@@ -4,10 +4,18 @@ pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManagerUpgradeable {
     enum SubscriptionState{ 
-        NONE,       // Subscription notfound. its like default value for subscription state
-        EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
-        ACTIVE,     // Active subscription
-        CANCELED     // Becomes canceled after failed retries to charge 
+        // NONE,       // Subscription notfound. its like default value for subscription state
+        // EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
+        // ACTIVE,     // Active subscription
+        // CANCELED     // Becomes canceled after failed retries to charge 
+
+
+        NONE,   //
+        ACTIVE, //
+        LAPSED, // (when active in grace period)
+        BROKEN, // (when user didnt pay)
+        EXPIRED,// (when max intervals exceeded)
+        CANCELED// (when user canceled)
     }
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
@@ -45,6 +53,7 @@ interface ISubscriptionsManagerUpgradeable {
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook,
         address costManager,
         address producedBy

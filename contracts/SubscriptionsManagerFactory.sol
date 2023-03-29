@@ -82,7 +82,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     * @param price price for subsription on single interval
     * @param controller [optional] controller address
     * @param recipient address which will receive the subscription payments
-    * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
+    * @param recipientTokenId if not 0, then recipient is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
     * @return instance address of created instance `SubscriptionsManager`
     * @custom:shortd creation SubscriptionsManager instance
@@ -96,13 +96,14 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
     ) 
         public 
         returns (address instance) 
     {
         instance = address(implementation).clone();
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook);
+        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientTokenId, hook);
     }
 
     /**
@@ -114,6 +115,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     * @param price price for subsription on single interval
     * @param controller [optional] controller address
     * @param recipient address which will obtain pay for subscription
+    * @param recipientTokenId if not 0, then recipient is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
     * @return instance address of created instance `SubscriptionsManager`
     * @custom:shortd creation SubscriptionsManager instance
@@ -128,13 +130,14 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
     ) 
         public 
         returns (address instance) 
     {
         instance = address(implementation).cloneDeterministic(salt);
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook);
+        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientTokenId, hook);
     }
 
     function doCharge(
@@ -185,6 +188,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
     ) 
         internal
@@ -207,7 +211,7 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         }
     
         //initialize
-        ISubscriptionsManagerUpgradeable(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook, costManager, msg.sender);
+        ISubscriptionsManagerUpgradeable(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, recipientTokenId, hook, costManager, msg.sender);
 
         //after initialize
         Ownable(instance).transferOwnership(msg.sender);

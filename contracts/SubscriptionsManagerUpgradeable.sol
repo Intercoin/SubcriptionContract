@@ -4,15 +4,12 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@artman325/releasemanager/contracts/CostManagerHelper.sol";
 import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
-
-interface INFTOwner {
-    function ownerOf(uint256 tokenId) external returns(address);
-}
 
 contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
     uint32 public interval;
@@ -74,7 +71,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     * @param token_ token address to charge
     * @param price_ price for subsription on single interval
     * @param controller_ [optional] controller address
-    * @param recipient address which will receive the subscription payments
+    * @param recipient_ address which will receive the subscription payments
     * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
     * @param hook_  if present then try to call hook.onCharge 
     * @param costManager_ costManager address
@@ -197,8 +194,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
 
    /**
     * @dev updates any CommunityContract in which roles will be granted and revoked
-    * @param community the address of the community contract
-    * @param roleId the role to grant/revoke, note that this SubscriptionContract should have a role that is able to grant/revoke roleId
+    * @param community_ the address of the community contract
+    * @param roleId_ the role to grant/revoke, note that this SubscriptionContract should have a role that is able to grant/revoke roleId
     * @custom:calledby owner
     */
     function setCommunity(address community_, uint8 roleId_) external onlyOwner {
@@ -212,10 +209,8 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     }
 
    /**
-    * @dev called by authorized controller contracts to start subscriptions with custom prices
-    * @param subscriber the address that will be paying
-    * @param customPrice custom price for this subscription
-    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+    * @dev called by authorized controller contracts to charge subscriptions
+    * @param subscribers the addresses that will be paying
     * @custom:calledby owner or caller
     */
     function charge(address[] memory subscribers) external override ownerOrCaller {
@@ -324,7 +319,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             _currentBlockTimestamp(),
             _currentBlockTimestamp(),
             desiredIntervals,
-            SubscriptionState.EXPIRED
+            SubscriptionState.LAPSED
         );
 
         //---
@@ -373,7 +368,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
 
             bool result = ISubscriptionsManagerFactory(factory).doCharge(
                 token, getSubscriptionPrice(subscription) * desiredIntervals, subscriber,
-                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
+                recipientTokenId != 0 ? IERC721Upgradeable(recipient).ownerOf(recipientTokenId) : recipient
             );
 
             if (result) {
@@ -437,15 +432,15 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     // - 
     */
     function _subscriptionActualize(Subscription storage subscription) private returns(bool skip){
-        if (subscription.state == SubscriptionState.EXPIRED) {
+        if (subscription.state == SubscriptionState.LAPSED) {
             if (
-                // subscription turn to CANCELED state as reached maximum retries attempt
+                // subscription turn to BROKEN state as reached maximum retries attempt
                 (subscription.endTime < _currentBlockTimestamp() - interval*retries) || 
                 // or exceed interval subscription
                 (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals)
             ) {
-                // turn into the canceled state, which can not be restored
-                _active(subscription, SubscriptionState.CANCELED);
+                // turn into the broken state, which can not be restored
+                _active(subscription, SubscriptionState.BROKEN);
                 emit SubscriptionIsCanceled(subscription.subscriber, _currentBlockTimestamp());
                 //continue;
                 skip = true;
@@ -468,7 +463,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             if (
                 subscription.state == SubscriptionState.NONE ||     // if not created before
                 subscription.state == SubscriptionState.ACTIVE ||   // or already active
-                subscription.state == SubscriptionState.CENCELED    // or already canceled
+                subscription.state == SubscriptionState.CANCELED    // or already canceled
             ) {
                 continue; 
             }
@@ -485,7 +480,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
                 
             }
 
-            // and turn to canceled if
+            // and turn to broken if
             // - is user interval expired?
             // - is subscription max interval expire?
             // - is exceed retries attempt?
@@ -501,7 +496,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             bool result = ISubscriptionsManagerFactory(factory)
             .doCharge(
                 token, subscription.price * diffIntervals, subscriber,
-                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
+                recipientTokenId != 0 ? IERC721Upgradeable(recipient).ownerOf(recipientTokenId) : recipient
             );
 
             if (result) {
