@@ -13,20 +13,23 @@ import "@artman325/releasemanager/contracts/ReleaseManager.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 
-
-contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManagerHelper, ISubscriptionsManagerFactory {
+contract SubscriptionsManagerFactory is
+    CostManagerFactoryHelper,
+    ReleaseManagerHelper,
+    ISubscriptionsManagerFactory
+{
     using Clones for address;
     using Address for address;
 
     /**
-    * @custom:shortd implementation address
-    * @notice implementation address
-    */
+     * @custom:shortd implementation address
+     * @notice implementation address
+     */
     address public immutable implementation;
 
     mapping(address => bool) public instances;
     uint256 internal totalInstancesCount;
-    
+
     //error InstanceCreatedFailed();
     error UnauthorizedContract(address controller);
     error OnlyInstances();
@@ -39,15 +42,16 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         }
         _;
     }
+
     /**
-    */
+     */
     constructor(
         address _implementation,
         address _costManager,
         address _releaseManager
-    ) 
-        CostManagerFactoryHelper(_costManager) 
-        ReleaseManagerHelper(_releaseManager) 
+    )
+        CostManagerFactoryHelper(_costManager)
+        ReleaseManagerHelper(_releaseManager)
     {
         implementation = _implementation;
     }
@@ -57,15 +61,11 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     ////////////////////////////////////////////////////////////////////////
 
     /**
-    * @dev view amount of created instances
-    * @return amount amount instances
-    * @custom:shortd view amount of created instances
-    */
-    function instancesCount()
-        external 
-        view 
-        returns (uint256 amount) 
-    {
+     * @dev view amount of created instances
+     * @return amount amount instances
+     * @custom:shortd view amount of created instances
+     */
+    function instancesCount() external view returns (uint256 amount) {
         amount = totalInstancesCount;
     }
 
@@ -74,19 +74,19 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
     ////////////////////////////////////////////////////////////////////////
 
     /**
-    * @param interval interval count
-    * @param intervalsMax max interval
-    * @param intervalsMin min interval
-    * @param retries amount of retries
-    * @param token token address to charge
-    * @param price price for subsription on single interval
-    * @param controller [optional] controller address
-    * @param recipient address which will receive the subscription payments
-    * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
-    * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
-    * @return instance address of created instance `SubscriptionsManager`
-    * @custom:shortd creation SubscriptionsManager instance
-    */
+     * @param interval interval count
+     * @param intervalsMax max interval
+     * @param intervalsMin min interval
+     * @param retries amount of retries
+     * @param token token address to charge
+     * @param price price for subsription on single interval
+     * @param controller [optional] controller address
+     * @param recipient address which will receive the subscription payments
+     * @param recipientTokenId if not 0, then recipient is interpreted as a NFT contract, while the token owner would be the actual recipient
+     * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
+     * @return instance address of created instance `SubscriptionsManager`
+     * @custom:shortd creation SubscriptionsManager instance
+     */
     function produce(
         uint32 interval,
         uint16 intervalsMax,
@@ -96,28 +96,39 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
-    ) 
-        public 
-        returns (address instance) 
-    {
+    ) public returns (address instance) {
         instance = address(implementation).clone();
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook);
+        _produce(
+            instance,
+            interval,
+            intervalsMax,
+            intervalsMin,
+            retries,
+            token,
+            price,
+            controller,
+            recipient,
+            recipientTokenId,
+            hook
+        );
     }
 
     /**
-    * @param interval interval count
-    * @param intervalsMax max interval
-    * @param intervalsMin min interval
-    * @param retries amount of retries
-    * @param token token address to charge
-    * @param price price for subsription on single interval
-    * @param controller [optional] controller address
-    * @param recipient address which will obtain pay for subscription
-    * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
-    * @return instance address of created instance `SubscriptionsManager`
-    * @custom:shortd creation SubscriptionsManager instance
-    */
+     * @param interval interval count
+     * @param intervalsMax max interval
+     * @param intervalsMin min interval
+     * @param retries amount of retries
+     * @param token token address to charge
+     * @param price price for subsription on single interval
+     * @param controller [optional] controller address
+     * @param recipient address which will obtain pay for subscription
+     * @param recipientTokenId if not 0, then recipient is interpreted as a NFT contract, while the token owner would be the actual recipient
+     * @param hook address if present  then contract will try to call ISubscriptionsHook(hook).onCharge
+     * @return instance address of created instance `SubscriptionsManager`
+     * @custom:shortd creation SubscriptionsManager instance
+     */
     function produceDeterministic(
         bytes32 salt,
         uint32 interval,
@@ -128,30 +139,43 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
-    ) 
-        public 
-        returns (address instance) 
-    {
+    ) public returns (address instance) {
         instance = address(implementation).cloneDeterministic(salt);
-        _produce(instance, interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook);
+        _produce(
+            instance,
+            interval,
+            intervalsMax,
+            intervalsMin,
+            retries,
+            token,
+            price,
+            controller,
+            recipient,
+            recipientTokenId,
+            hook
+        );
     }
 
     function doCharge(
-        address targetToken, 
-        uint256 amount, 
-        address from, 
+        address targetToken,
+        uint256 amount,
+        address from,
         address to
-    ) 
-        external 
-        onlyInstance
-        returns(bool returnSuccess) 
-    {
+    ) external onlyInstance returns (bool returnSuccess) {
         returnSuccess = false;
-        
+
         // we shoud not revert transaction, just return failed condition of `transferFrom` attempt
-        bytes memory data = abi.encodeWithSelector(IERC20(targetToken).transferFrom.selector, from, to, amount);
-        (bool success, bytes memory returndata) = address(targetToken).call{value: 0}(data);
+        bytes memory data = abi.encodeWithSelector(
+            IERC20(targetToken).transferFrom.selector,
+            from,
+            to,
+            amount
+        );
+        (bool success, bytes memory returndata) = address(targetToken).call{
+            value: 0
+        }(data);
 
         if (success) {
             returnSuccess = true;
@@ -164,13 +188,11 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
                     returnSuccess = false;
                 }
             }
-            
-        // } else {
-        //     returnSuccess = false;
-        }
-    
-    }
 
+            // } else {
+            //     returnSuccess = false;
+        }
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // internal section ////////////////////////////////////////////////////
@@ -185,10 +207,9 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         uint256 price,
         address controller,
         address recipient,
+        uint256 recipientTokenId,
         address hook
-    ) 
-        internal
-    {
+    ) internal {
         //before initialize
 
         // already cheched in clone/cloneDeterministic
@@ -200,14 +221,28 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         emit InstanceCreated(instance, totalInstancesCount);
 
         if (controller != address(0)) {
-            bool isControllerinOurEcosystem = ReleaseManager(releaseManager()).checkInstance(controller);
+            bool isControllerinOurEcosystem = ReleaseManager(releaseManager())
+                .checkInstance(controller);
             if (!isControllerinOurEcosystem) {
                 revert UnauthorizedContract(controller);
             }
         }
-    
+
         //initialize
-        ISubscriptionsManagerUpgradeable(instance).initialize(interval, intervalsMax, intervalsMin, retries, token, price, controller, recipient, hook, costManager, msg.sender);
+        ISubscriptionsManagerUpgradeable(instance).initialize(
+            interval,
+            intervalsMax,
+            intervalsMin,
+            retries,
+            token,
+            price,
+            controller,
+            recipient,
+            recipientTokenId,
+            hook,
+            costManager,
+            msg.sender
+        );
 
         //after initialize
         Ownable(instance).transferOwnership(msg.sender);
@@ -217,5 +252,4 @@ contract SubscriptionsManagerFactory  is CostManagerFactoryHelper, ReleaseManage
         registerInstance(instance);
         //-----------------
     }
-
 }

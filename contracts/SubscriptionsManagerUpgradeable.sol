@@ -4,17 +4,19 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@artman325/releasemanager/contracts/CostManagerHelper.sol";
 import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
 
-interface INFTOwner {
-    function ownerOf(uint256 tokenId) external returns(address);
-}
-
-contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsManagerUpgradeable, ReentrancyGuardUpgradeable, CostManagerHelper {
+contract SubscriptionsManagerUpgradeable is
+    OwnableUpgradeable,
+    ISubscriptionsManagerUpgradeable,
+    ReentrancyGuardUpgradeable,
+    CostManagerHelper
+{
     uint32 public interval;
     uint16 public intervalsMax; // if 0, no max
     uint16 public intervalsMin;
@@ -24,11 +26,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
 
     address recipient;
     uint256 recipientTokenId;
-    
+
     address hook;
 
-    mapping (address => Subscription) public subscriptions;
-    mapping (address => bool) public callers;
+    mapping(address => Subscription) public subscriptions;
+    mapping(address => bool) public callers;
 
     address public controller; // optional, smart contract that can start a subscription and pay first charge
     address public factory; // the factory
@@ -36,12 +38,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     address community; // any CommunityContract
     uint8 roleId; // the role
 
-    uint8 internal constant OPERATION_SHIFT_BITS = 240;  // 256 - 16
+    uint8 internal constant OPERATION_SHIFT_BITS = 240; // 256 - 16
     // Constants representing operations
     uint8 internal constant OPERATION_INITIALIZE = 0x0;
 
     modifier onlyController() {
-        
         if (controller == address(0)) {
             revert NotSupported();
         }
@@ -53,7 +54,6 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         _;
     }
 
-    
     modifier ownerOrCaller() {
         address ms = _msgSender();
         if (owner() != _msgSender() && callers[ms] != true) {
@@ -67,21 +67,21 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     }
 
     /**
-    * @param interval_ period, day,week,month in seconds
-    * @param intervalsMax_ max interval
-    * @param intervalsMin_ min interval
-    * @param retries_ amount of retries
-    * @param token_ token address to charge
-    * @param price_ price for subsription on single interval
-    * @param controller_ [optional] controller address
-    * @param recipient address which will receive the subscription payments
-    * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
-    * @param hook_  if present then try to call hook.onCharge 
-    * @param costManager_ costManager address
-    * @param producedBy_ producedBy address
-    * @custom:calledby factory
-    * @custom:shortd initialize while factory produce
-    */
+     * @param interval_ period, day,week,month in seconds
+     * @param intervalsMax_ max interval
+     * @param intervalsMin_ min interval
+     * @param retries_ amount of retries
+     * @param token_ token address to charge
+     * @param price_ price for subsription on single interval
+     * @param controller_ [optional] controller address
+     * @param recipient_ address which will receive the subscription payments
+     * @param recipientTokenId_ if not 0, then recipient_ is interpreted as a NFT contract, while the token owner would be the actual recipient
+     * @param hook_  if present then try to call hook.onCharge
+     * @param costManager_ costManager address
+     * @param producedBy_ producedBy address
+     * @custom:calledby factory
+     * @custom:shortd initialize while factory produce
+     */
     function initialize(
         uint32 interval_,
         uint16 intervalsMax_,
@@ -95,18 +95,13 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         address hook_,
         address costManager_,
         address producedBy_
-    ) 
-        external
-        initializer  
-        override
-    {
-
+    ) external override initializer {
         __CostManagerHelper_init(_msgSender());
         _setCostManager(costManager_);
 
         __Ownable_init();
         __ReentrancyGuard_init();
-        
+
         factory = owner();
 
         interval = interval_;
@@ -128,47 +123,36 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     }
 
     ///////////////////////////////////
-    // external 
+    // external
     ///////////////////////////////////
 
-
-   /**
-    * @dev called by authorized controller contracts to start subscriptions with custom prices
-    * @param subscriber the address that will be paying
-    * @param customPrice custom price for this subscription
-    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
-    * @custom:calledby controller
-    */
+    /**
+     * @dev called by authorized controller contracts to start subscriptions with custom prices
+     * @param subscriber the address that will be paying
+     * @param customPrice custom price for this subscription
+     * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+     * @custom:calledby controller
+     */
     function subscribeFromController(
-        address subscriber, 
-        uint256 customPrice, 
+        address subscriber,
+        uint256 customPrice,
         uint16 desiredIntervals
-    ) 
-        external 
-        override 
-        onlyController
-    {
+    ) external override onlyController {
         _subscribe(subscriber, customPrice, desiredIntervals);
     }
 
-   /**
-    * @dev starts a recurring subscription for msg.sender at the default price
-    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
-    */
-    function subscribe(
-        uint16 desiredIntervals
-    ) 
-        external 
-        override 
-    {
+    /**
+     * @dev starts a recurring subscription for msg.sender at the default price
+     * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
+     */
+    function subscribe(uint16 desiredIntervals) external override {
         _subscribe(_msgSender(), price, desiredIntervals);
     }
 
-   /**
-    * @dev cancels subscription that is currently active for the msg.sender
-    */
+    /**
+     * @dev cancels subscription that is currently active for the msg.sender
+     */
     function cancel() external override {
-        
         Subscription storage subscription = subscriptions[_msgSender()];
         if (subscription.state == SubscriptionState.ACTIVE) {
             _active(subscription, SubscriptionState.CANCELED);
@@ -177,11 +161,11 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         }
     }
 
-   /**
-    * @dev can be called by owner to unilateraly cancel multiple subscriptions
-    * @param subscribers the addresses whose subscriptions to cancel
-    * @custom:calledby owner
-    */
+    /**
+     * @dev can be called by owner to unilateraly cancel multiple subscriptions
+     * @param subscribers the addresses whose subscriptions to cancel
+     * @custom:calledby owner
+     */
     function cancel(address[] memory subscribers) external override onlyOwner {
         uint256 l = subscribers.length;
         for (uint256 i = 0; i < l; i++) {
@@ -192,16 +176,18 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             }
             emit Canceled(subscription.subscriber, _currentBlockTimestamp());
         }
-    
     }
 
-   /**
-    * @dev updates any CommunityContract in which roles will be granted and revoked
-    * @param community the address of the community contract
-    * @param roleId the role to grant/revoke, note that this SubscriptionContract should have a role that is able to grant/revoke roleId
-    * @custom:calledby owner
-    */
-    function setCommunity(address community_, uint8 roleId_) external onlyOwner {
+    /**
+     * @dev updates any CommunityContract in which roles will be granted and revoked
+     * @param community_ the address of the community contract
+     * @param roleId_ the role to grant/revoke, note that this SubscriptionContract should have a role that is able to grant/revoke roleId
+     * @custom:calledby owner
+     */
+    function setCommunity(
+        address community_,
+        uint8 roleId_
+    ) external onlyOwner {
         if (roleId_ == 0 && community_ != address(0)) {
             revert invalidCommunitySettings();
         }
@@ -211,76 +197,82 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
         roleId = roleId_;
     }
 
-   /**
-    * @dev called by authorized controller contracts to start subscriptions with custom prices
-    * @param subscriber the address that will be paying
-    * @param customPrice custom price for this subscription
-    * @param desiredIntervals the number of intervals (e.g. weeks) this subscription should last
-    * @custom:calledby owner or caller
-    */
-    function charge(address[] memory subscribers) external override ownerOrCaller {
+    /**
+     * @dev called by authorized controller contracts to charge subscriptions
+     * @param subscribers the addresses that will be paying
+     * @custom:calledby owner or caller
+     */
+    function charge(
+        address[] memory subscribers
+    ) external override ownerOrCaller {
         // if all callers fail to do this within an interval
         // then restore() will have to be called before charge()
         _charge(subscribers, 1, false);
     }
 
-   /**
-    * @dev attempt to charge and restore a lapsed subscription from msg.sender
-    */
+    /**
+     * @dev attempt to charge and restore a lapsed subscription from msg.sender
+     */
     function restore() external override {
         address[] memory subscribers = new address[](1);
         subscribers[0] = _msgSender();
         _restore(subscribers, false);
     }
 
-   /**
-    * @dev restore subscription
-    * @param subscribers array of subscribers for whom to attempt to charge and restore a lapsed subscription
-    * @custom:calledby owner or one of the added callers
-    */
-    function restore(address[] memory subscribers) external override ownerOrCaller{
+    /**
+     * @dev restore subscription
+     * @param subscribers array of subscribers for whom to attempt to charge and restore a lapsed subscription
+     * @custom:calledby owner or one of the added callers
+     */
+    function restore(
+        address[] memory subscribers
+    ) external override ownerOrCaller {
         _restore(subscribers, true);
     }
 
-   /**
-    * @dev add an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
-    * @param caller the address of the caller
-    */
+    /**
+     * @dev add an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
+     * @param caller the address of the caller
+     */
     function addCaller(address caller) external override onlyOwner {
         callers[caller] = true;
     }
-    
-   /**
-    * @dev remove an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
-    * @param caller the address of the caller
-    */
+
+    /**
+     * @dev remove an authorized caller who can call methods to charge subscribers or attempt to restore subscriptions
+     * @param caller the address of the caller
+     */
     function removeCaller(address caller) external override onlyOwner {
         //callers[caller] = false;
         delete callers[caller];
     }
 
-   /**
-    * @dev find out the state of a subscriber
-    * @param subscriber the address of the subscriber
-    * @return active whether the subscription is still active
-    * @return state the state of the subscription (NONE, ACTIVE, EXPRIED, CANCELED)
-    */
-    function isActive(address subscriber) external override view returns (bool, SubscriptionState) {
+    /**
+     * @dev find out the state of a subscriber
+     * @param subscriber the address of the subscriber
+     * @return active whether the subscription is still active
+     * @return state the state of the subscription (NONE, ACTIVE, EXPRIED, CANCELED)
+     */
+    function isActive(
+        address subscriber
+    ) external view override returns (bool, SubscriptionState) {
         Subscription storage subscription = subscriptions[subscriber];
+
         return (
-            (
-                subscription.state == SubscriptionState.ACTIVE
-            ),
+            (subscription.state == SubscriptionState.ACTIVE ||
+                subscription.state == SubscriptionState.LAPSED),
             subscription.state
         );
     }
 
-   /**
-    * @dev find out the timestamp of when a subscription expires
-    * @param subscriber the address of the subscriber
-    * @return timestamp seconds since Unix epoch
-    */
-    function activeUntil(address subscriber) external override view returns (uint64) {
+    /**
+     * @dev find out the timestamp of when a subscription expires
+     * @param subscriber the address of the subscriber
+     * @return timestamp seconds since Unix epoch
+     */
+    function activeUntil(
+        address subscriber
+    ) external view override returns (uint64) {
         Subscription storage subscription = subscriptions[subscriber];
         return subscription.endTime;
     }
@@ -305,13 +297,10 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
 
     // must prepay intervalsMin intervals to start a subscription
     function _subscribe(
-        address subscriber, 
-        uint256 fee, 
+        address subscriber,
+        uint256 fee,
         uint16 desiredIntervals
-    ) 
-        private 
-    {
-        
+    ) private {
         if (intervalsMax > 0 && desiredIntervals > intervalsMax) {
             revert SubscriptionTooLong();
         }
@@ -324,14 +313,18 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             _currentBlockTimestamp(),
             _currentBlockTimestamp(),
             desiredIntervals,
-            SubscriptionState.EXPIRED
+            SubscriptionState.LAPSED
         );
 
         //---
         address[] memory subscribers = new address[](1);
         subscribers[0] = subscriber;
         //---
-        uint16 count = _charge(subscribers, intervalsMin > 0 ? intervalsMin : 1, true); // charge the first intervalsMin intervals
+        uint16 count = _charge(
+            subscribers,
+            intervalsMin > 0 ? intervalsMin : 1,
+            true
+        ); // charge the first intervalsMin intervals
         if (count > 0) {
             emit Subscribed(subscriber, _currentBlockTimestamp());
         }
@@ -341,16 +334,12 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     // to be either extended or canceled and set endTime
     // requiring them to be restored
     function _charge(
-        address[] memory subscribers, 
+        address[] memory subscribers,
         uint16 desiredIntervals,
         bool firstTime
-    ) 
-        private 
-        returns(uint16 count)
-    {
-        
+    ) private returns (uint16 count) {
         uint256 l = subscribers.length;
-        
+
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
@@ -372,49 +361,66 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             }
 
             bool result = ISubscriptionsManagerFactory(factory).doCharge(
-                token, getSubscriptionPrice(subscription) * desiredIntervals, subscriber,
-                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
+                token,
+                getSubscriptionPrice(subscription) * desiredIntervals,
+                subscriber,
+                recipientTokenId != 0
+                    ? IERC721Upgradeable(recipient).ownerOf(recipientTokenId)
+                    : recipient
             );
 
             if (result) {
                 _active(subscription, SubscriptionState.ACTIVE);
-                emit Charged(subscriber, getSubscriptionPrice(subscription) * desiredIntervals);
+                emit Charged(
+                    subscriber,
+                    getSubscriptionPrice(subscription) * desiredIntervals
+                );
                 subscription.endTime += interval * desiredIntervals;
                 count++;
 
                 if (hook != address(0)) {
-                    ISubscriptionsHook(hook).onCharge(token, getSubscriptionPrice(subscription));
+                    ISubscriptionsHook(hook).onCharge(
+                        token,
+                        getSubscriptionPrice(subscription)
+                    );
                 }
             } else {
                 if (firstTime) {
                     revert SubscriptionCantStart();
                 } else {
-                        
-                    if (subscription.state != SubscriptionState.EXPIRED) {
-                        emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
+                    if (subscription.state != SubscriptionState.LAPSED) {
+                        emit SubscriptionLapsed(
+                            subscriber,
+                            _currentBlockTimestamp()
+                        );
                     }
-                    _active(subscription, SubscriptionState.EXPIRED);
-                    emit ChargeFailed(subscriber, getSubscriptionPrice(subscription));
-                
+
+                    _active(subscription, SubscriptionState.LAPSED);
+                    emit ChargeFailed(
+                        subscriber,
+                        getSubscriptionPrice(subscription)
+                    );
                 }
             }
-            
         }
-        
-        
     }
 
-    function getSubscriptionPrice(Subscription storage subscription) private view returns(uint256) {
+    function getSubscriptionPrice(
+        Subscription storage subscription
+    ) private view returns (uint256) {
         return (subscription.price == 0) ? price : subscription.price;
     }
 
-    function _active(Subscription storage subscription, SubscriptionState newState) private {
+    function _active(
+        Subscription storage subscription,
+        SubscriptionState newState
+    ) private {
         if (subscription.state == newState) {
             return; // nothing to do
         }
         subscription.state = newState;
         emit StateChanged(subscription.subscriber, newState);
-        
+
         if (community == address(0)) {
             return; // nothing to do
         }
@@ -429,6 +435,7 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
             ICommunity(community).revokeRoles(_s, _r);
         }
     }
+
     /**
     // try to check:
     // - is user interval expired?
@@ -436,82 +443,98 @@ contract SubscriptionsManagerUpgradeable is OwnableUpgradeable, ISubscriptionsMa
     // - is exceed retries attempt?
     // - 
     */
-    function _subscriptionActualize(Subscription storage subscription) private returns(bool skip){
-        if (subscription.state == SubscriptionState.EXPIRED) {
+    function _subscriptionActualize(
+        Subscription storage subscription
+    ) private returns (bool skip) {
+        if (subscription.state == SubscriptionState.LAPSED) {
             if (
-                // subscription turn to CANCELED state as reached maximum retries attempt
-                (subscription.endTime < _currentBlockTimestamp() - interval*retries) || 
+                // subscription turn to BROKEN state as reached maximum retries attempt
+                (subscription.endTime <
+                    _currentBlockTimestamp() - interval * retries) ||
                 // or exceed interval subscription
-                (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals)
+                (_currentBlockTimestamp() - subscription.startTime >
+                    interval * subscription.intervals)
             ) {
-                // turn into the canceled state, which can not be restored
-                _active(subscription, SubscriptionState.CANCELED);
-                emit SubscriptionIsCanceled(subscription.subscriber, _currentBlockTimestamp());
+                // turn into the broken state, which can not be restored
+                _active(subscription, SubscriptionState.BROKEN);
+                emit SubscriptionIsCanceled(
+                    subscription.subscriber,
+                    _currentBlockTimestamp()
+                );
                 //continue;
                 skip = true;
             }
         }
     }
-   
+
     function _restore(
-        address[] memory subscribers, 
+        address[] memory subscribers,
         bool ownerOrCaller_
-    ) 
-        private 
-    {
+    ) private {
         uint256 l = subscribers.length;
         for (uint256 i = 0; i < l; i++) {
             address subscriber = subscribers[i];
             Subscription storage subscription = subscriptions[subscriber];
 
-           
-            if (
-                subscription.state == SubscriptionState.NONE ||     // if not created before
-                subscription.state == SubscriptionState.ACTIVE ||   // or already active
-                subscription.state == SubscriptionState.CENCELED    // or already canceled
-            ) {
-                continue; 
-            }
-            
-            if (_currentBlockTimestamp() - subscription.startTime > interval * subscription.intervals) {
-                emit SubscriptionExpired(subscriber, _currentBlockTimestamp());
-                
-            }
+            if (subscription.state == SubscriptionState.LAPSED) {
+                uint64 difference = uint64(
+                    _currentBlockTimestamp() - subscription.endTime
+                );
+                uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
+                if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
+                    emit RetriesExpired(
+                        subscriber,
+                        _currentBlockTimestamp(),
+                        diffIntervals
+                    );
+                }
 
-            uint64 difference = uint64(_currentBlockTimestamp() - subscription.endTime);
-            uint64 diffIntervals = difference / interval + 1; // rounds up to nearest integer
-            if (!ownerOrCaller_ && diffIntervals > uint64(retries)) {
-                emit RetriesExpired(subscriber, _currentBlockTimestamp(), diffIntervals);
-                
-            }
+                if (
+                    _currentBlockTimestamp() - subscription.startTime >
+                    interval * subscription.intervals
+                ) {
+                    emit SubscriptionExpired(
+                        subscriber,
+                        _currentBlockTimestamp()
+                    );
+                    _active(subscription, SubscriptionState.EXPIRED);
+                    continue;
+                }
 
-            // and turn to canceled if
-            // - is user interval expired?
-            // - is subscription max interval expire?
-            // - is exceed retries attempt?
-            // - 
-            if (_subscriptionActualize(subscription)) {
-                continue;
-            }
+                // and turn to broken if
+                // - is user interval expired?
+                // - is subscription max interval expire?
+                // - is exceed retries attempt?
+                // -
+                if (_subscriptionActualize(subscription)) {
+                    continue;
+                }
 
-            
+                uint256 amount = getSubscriptionPrice(subscription);
 
-            uint256 amount = getSubscriptionPrice(subscription);
-            
-            bool result = ISubscriptionsManagerFactory(factory)
-            .doCharge(
-                token, subscription.price * diffIntervals, subscriber,
-                recipientTokenId ? INFTOwner(recipient).ownerOf(recipientTokenId) : recipient
-            );
+                bool result = ISubscriptionsManagerFactory(factory).doCharge(
+                    token,
+                    subscription.price * diffIntervals,
+                    subscriber,
+                    recipientTokenId != 0
+                        ? IERC721Upgradeable(recipient).ownerOf(
+                            recipientTokenId
+                        )
+                        : recipient
+                );
 
-            if (result) {
-                _active(subscription, SubscriptionState.ACTIVE);
-                emit Restored(subscriber, _currentBlockTimestamp(), subscription.endTime);
-                subscription.endTime += interval * diffIntervals;
-            } else {
-                emit ChargeFailed(subscriber, amount);
+                if (result) {
+                    _active(subscription, SubscriptionState.ACTIVE);
+                    emit Restored(
+                        subscriber,
+                        _currentBlockTimestamp(),
+                        subscription.endTime
+                    );
+                    subscription.endTime += interval * diffIntervals;
+                } else {
+                    emit ChargeFailed(subscriber, amount);
+                }
             }
         }
     }
-
 }

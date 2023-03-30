@@ -8,11 +8,14 @@ contract MockSubscriptionsManagerFactory is SubscriptionsManagerFactory {
         address _implementation,
         address _costManager,
         address _releaseManager
-    ) 
-        SubscriptionsManagerFactory(_implementation, _costManager, _releaseManager)
-    {
-    }
-    
+    )
+        SubscriptionsManagerFactory(
+            _implementation,
+            _costManager,
+            _releaseManager
+        )
+    {}
+
     function addIntoInstances(address addr) public {
         instances[addr] = true;
     }

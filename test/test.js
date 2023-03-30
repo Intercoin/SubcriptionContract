@@ -24,8 +24,20 @@ const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 
 const NO_COSTMANAGER = ZERO_ADDRESS;
 const NO_HOOK = ZERO_ADDRESS;
-const SubscriptionState = {NONE:0, EXPIRED:1, ACTIVE:2, BROKEN:3};
+const SubscriptionState = {
+    // NONE:0, 
+    // EXPIRED:1, 
+    // ACTIVE:2, 
+    // BROKEN:3
+    NONE:0, 
+    LAPSED:1, 
+    ACTIVE:2, 
+    BROKEN:3,
+    EXPIRED:4,
+    CANCELED:5,
+};
 
+const NO_RECIPIENT_TOKEN_ID = 0;
 
 
 describe("Test", function () {
@@ -98,6 +110,7 @@ describe("Test", function () {
                 ONE_ETH, //uint256 price,
                 ZERO_ADDRESS, //address controller,
                 recipient.address, //address recipient,
+                NO_RECIPIENT_TOKEN_ID,
                 NO_HOOK //bool recipientImplementsHooks
             ];
             
@@ -203,7 +216,7 @@ describe("Test", function () {
             pWithWrongControllerAsEOAUser = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 recipient.address, //address controller,
-                recipient.address, NO_HOOK
+                recipient.address, NO_RECIPIENT_TOKEN_ID, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsEOAUser)
@@ -212,7 +225,7 @@ describe("Test", function () {
             pWithWrongControllerAsERC20 = [
                 86400, 20, 1, 3, erc20.address, ONE_ETH,
                 erc20.address, //address controller,
-                recipient.address, NO_HOOK
+                recipient.address, NO_RECIPIENT_TOKEN_ID, NO_HOOK
             ];
             await expect(
                 SubscriptionsManagerFactory.connect(owner).produce(...pWithWrongControllerAsERC20)
@@ -401,6 +414,7 @@ describe("Test", function () {
                     ONE_ETH, //uint256 price,
                     MockController.address, //address controller,
                     recipient.address, //address recipient,
+                    NO_RECIPIENT_TOKEN_ID,
                     NO_HOOK //bool recipientImplementsHooks
                 ];
                 
@@ -433,6 +447,7 @@ describe("Test", function () {
                     commonPrice, //uint256 price,
                     controllerUsed ? MockController.address : ZERO_ADDRESS, //address controller,
                     recipient.address, //address recipient,
+                    NO_RECIPIENT_TOKEN_ID,
                     NO_HOOK //bool recipientImplementsHooks
                 ];
 
@@ -657,7 +672,7 @@ describe("Test", function () {
                 await SubscriptionsManager.connect(owner).charge([alice.address]);
 
                 tmp = await SubscriptionsManager.isActive(alice.address);
-                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                 await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                 await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
@@ -732,7 +747,7 @@ describe("Test", function () {
                 expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(subscriptionPrice.mul(TWO));
             });
 
-            it("should turn subscription in EXPIRED state when funds have not been consumed", async() => {
+            it("should turn subscription in LAPSED state when funds have not been consumed", async() => {
                 
                 await erc20.connect(owner).mint(alice.address, subscriptionPrice.mul(intervalsMin));
                 await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
@@ -762,10 +777,10 @@ describe("Test", function () {
 
                 let aliceERC20TokenBalanceAfter = await erc20.balanceOf(alice.address);
 
-                // still active but status EXPIRE although didnt charge for second interval
+                // still active but status LAPSED although didnt charge for second interval
                 tmp = await SubscriptionsManager.isActive(alice.address);
                 expect(tmp[0]).to.be.true;
-                expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                 expect(aliceERC20TokenBalanceBefore.sub(aliceERC20TokenBalanceAfter)).to.be.eq(subscriptionPrice.mul(intervalsMin));
                 
@@ -816,7 +831,7 @@ describe("Test", function () {
                     ).to.be.true;
 
                 }); 
-                it("should revoke role when subscription become expired", async() => {
+                it("should revoke role when subscription become lapsed", async() => {
 
                     await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                     await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, subscriptionPrice.mul(intervalsMin));
@@ -849,7 +864,7 @@ describe("Test", function () {
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
 
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
                     
                     expect(
                         await MockCommunity.hasRole(alice.address, roleIndex)
@@ -867,7 +882,7 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
                 });
-                it("shouldnt cancel subscription if it was expired before", async() => {
+                it("shouldnt cancel subscription if it was lapsed before", async() => {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
 
@@ -896,12 +911,12 @@ describe("Test", function () {
                     //cancel
                     await SubscriptionsManager.connect(alice)["cancel()"]();
 
-                    // still expired
+                    // still LAPSED
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                 });
-                it("shouldnt cancel subscription if it was BROKEN before", async() => {
+                it("shouldnt cancel subscription if it was CANCELED before", async() => {
                     await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                     await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
 
@@ -921,12 +936,12 @@ describe("Test", function () {
                     await SubscriptionsManager.connect(alice)["cancel()"]();
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.CANCELED);
 
                     await SubscriptionsManager.connect(alice)["cancel()"]();
                     // still expired
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.CANCELED);
 
                 });
                 it("should cancel subscription if active before", async() => {
@@ -957,7 +972,7 @@ describe("Test", function () {
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[0]).to.be.false;
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.CANCELED);
                 });
                 it("should cancel subscription by owner if active before", async() => {
                     await erc20.connect(owner).mint(alice.address, totalMintToAlice);
@@ -987,7 +1002,7 @@ describe("Test", function () {
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[0]).to.be.false;
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.CANCELED);
                 });
             });
             
@@ -1016,14 +1031,14 @@ describe("Test", function () {
                     await SubscriptionsManager.connect(owner).charge([alice.address]);
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                     await expect(
                         SubscriptionsManager.connect(alice)["restore()"]()
                     ).to.emit(SubscriptionsManager, 'ChargeFailed').withArgs(alice.address, subscriptionPrice);
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                 });
 
@@ -1037,7 +1052,7 @@ describe("Test", function () {
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
                 });
 
-                it("shouldnt restore subscription if passed all intervals", async() => {
+                it("shouldnt restore subscription if passed all intervals.", async() => {
                     
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.NONE);
@@ -1062,7 +1077,7 @@ describe("Test", function () {
                     await SubscriptionsManager.connect(owner).charge([alice.address]);
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                     await erc20.connect(owner).mint(alice.address, totalMintToAlice);
                     await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, totalMintToAlice);
@@ -1076,7 +1091,7 @@ describe("Test", function () {
                     ).to.emit(SubscriptionsManager, "SubscriptionExpired");
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
                 });    
 
                 it("shouldnt restore subscription if exceeded maximum retries attempt", async() => {
@@ -1094,17 +1109,13 @@ describe("Test", function () {
                     }
                     
                     //pass intervals
-                    await network.provider.send("evm_increaseTime", [interval]);
+                    await network.provider.send("evm_increaseTime", [intervalsMin*interval+5]);
                     await network.provider.send("evm_mine");
-                    await network.provider.send("evm_increaseTime", [interval]);
-                    await network.provider.send("evm_mine");
-
-                    await network.provider.send("evm_increaseTime", [10]);
-                    await network.provider.send("evm_mine");
+                    
                     await SubscriptionsManager.connect(owner).charge([alice.address]);
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
 
                     //pass intervals
                     for( let i=4; i--; ) {
@@ -1125,7 +1136,7 @@ describe("Test", function () {
                     ).to.emit(SubscriptionsManager, 'RetriesExpired');
 
                     tmp = await SubscriptionsManager.isActive(alice.address);
-                    expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
+                    expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
                 });    
 
                 it("shouldnt restore subscription if it was active before", async() => {
@@ -1167,9 +1178,15 @@ describe("Test", function () {
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.ACTIVE);
 
-                    //cancel
-                    await SubscriptionsManager.connect(alice)["cancel()"]();
+                    await erc20.connect(alice).approve(SubscriptionsManagerFactory.address, ZERO);
+                    //pass intervals
+                    for( let i=5; i--; ) {
 
+                        await network.provider.send("evm_increaseTime", [interval+5]);
+                        await network.provider.send("evm_mine");
+                        await SubscriptionsManager.connect(owner).charge([alice.address]);
+                    };
+                    
                     tmp = await SubscriptionsManager.isActive(alice.address);
                     expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
 
@@ -1180,7 +1197,7 @@ describe("Test", function () {
                     expect(tmp[1]).to.be.eq(SubscriptionState.BROKEN);
                 });
 
-                describe("should restore when state EXPIRED", function () {
+                describe("should restore when state LAPSED", function () {
                     var snapId;
                     let aliceERC20TokenBalanceBefore;
                     let aliceERC20TokenBalanceAfter;
@@ -1213,7 +1230,7 @@ describe("Test", function () {
                         
                         tmp = await SubscriptionsManager.isActive(alice.address);
                         expect(tmp[0]).to.be.true;
-                        expect(tmp[1]).to.be.eq(SubscriptionState.EXPIRED);
+                        expect(tmp[1]).to.be.eq(SubscriptionState.LAPSED);
                         //--------------------------------------------------------------------
                         //       [1]  [2]    [3]
                         // subscribe pass charge

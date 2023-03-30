@@ -3,7 +3,9 @@ pragma solidity ^0.8.11;
 
 import "../SubscriptionsManagerUpgradeable.sol";
 
-contract MockSubscriptionsManagerUpgradeable is SubscriptionsManagerUpgradeable {
+contract MockSubscriptionsManagerUpgradeable is
+    SubscriptionsManagerUpgradeable
+{
     function setHook(address hook_) public {
         hook = hook_;
     }
@@ -11,9 +13,8 @@ contract MockSubscriptionsManagerUpgradeable is SubscriptionsManagerUpgradeable 
     function setRecipient(address addr) public {
         recipient = addr;
     }
-    
-    function currentBlockTimestamp() public view returns(uint64) {
+
+    function currentBlockTimestamp() public view returns (uint64) {
         return _currentBlockTimestamp();
     }
-
 }
