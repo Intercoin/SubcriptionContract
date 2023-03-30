@@ -4,12 +4,7 @@ pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManagerUpgradeable {
     enum SubscriptionState {
-        // NONE,       // Subscription notfound. its like default value for subscription state
-        // EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
-        // ACTIVE,     // Active subscription
-        // CANCELED     // Becomes canceled after failed retries to charge
-
-        NONE, //
+        NONE, // Subscription notfound. its like default value for subscription state
         LAPSED, // (when active in grace period)
         ACTIVE, //
         BROKEN, // (when user didnt pay after retries attempt exceeded)
