@@ -13,7 +13,7 @@ interface ISubscriptionsManagerUpgradeable {
         NONE,   //
         LAPSED, // (when active in grace period)
         ACTIVE, //
-        BROKEN, // (when user didnt pay)
+        BROKEN, // (when user didnt pay after retries attempt exceeded)
         EXPIRED,// (when max intervals exceeded)
         CANCELED// (when user canceled)
         
@@ -35,6 +35,7 @@ interface ISubscriptionsManagerUpgradeable {
     event RetriesExpired(address subscriber, uint64 tryTime, uint64 retries);
     event SubscriptionIsCanceled(address subscriber, uint64 chargeTime);
     event SubscriptionExpired(address subscriber, uint64 chargeTime);
+    event SubscriptionLapsed(address subscriber, uint64 chargeTime);
     event StateChanged(address subscriber, SubscriptionState newState);
 
     error SubscriptionTooLong();
