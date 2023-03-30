@@ -9,6 +9,8 @@
   "description": "Implements recurring subscriptions",
   "main": "index.js",
   "scripts": {
+    "prettier": "prettier --write contracts/**/*.sol",
+    "ls": "dir",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

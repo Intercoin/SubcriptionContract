@@ -3,20 +3,18 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 interface ISubscriptionsManagerUpgradeable {
-    enum SubscriptionState{ 
+    enum SubscriptionState {
         // NONE,       // Subscription notfound. its like default value for subscription state
         // EXPIRED,    // Subscription just created, but contract cannot charge funds OR failed charge in next interval after being active
         // ACTIVE,     // Active subscription
-        // CANCELED     // Becomes canceled after failed retries to charge 
+        // CANCELED     // Becomes canceled after failed retries to charge
 
-
-        NONE,   //
+        NONE, //
         LAPSED, // (when active in grace period)
         ACTIVE, //
         BROKEN, // (when user didnt pay after retries attempt exceeded)
-        EXPIRED,// (when max intervals exceeded)
-        CANCELED// (when user canceled)
-        
+        EXPIRED, // (when max intervals exceeded)
+        CANCELED // (when user canceled)
     }
     struct Subscription {
         uint256 price; // if not 0, it overrides the global price
@@ -61,29 +59,35 @@ interface ISubscriptionsManagerUpgradeable {
         address producedBy
     ) external;
 
-    
     function subscribeFromController(
-        address subscriber, 
-        uint256 customPrice, 
+        address subscriber,
+        uint256 customPrice,
         uint16 intervals
     ) external;
-    
+
     // called by subscriber himself
     function subscribe(uint16 intervals) external; // intervals is maximum times to renew
+
     function cancel() external;
+
     function restore() external;
-    
+
     // called by owner
     function cancel(address[] memory subscribers) external;
+
     function addCaller(address caller) external;
+
     function removeCaller(address caller) external;
-    
+
     // ownerOrCaller
     // called to charge some subscribers and extend their subscriptions
-    function charge(address[] memory subscribers) external;// ownerOrCaller
+    function charge(address[] memory subscribers) external; // ownerOrCaller
+
     function restore(address[] memory subscribers) external; // ownerOrCaller
-    
-    function isActive(address subscriber) external view returns (bool, SubscriptionState);
+
+    function isActive(
+        address subscriber
+    ) external view returns (bool, SubscriptionState);
+
     function activeUntil(address subscriber) external view returns (uint64);
-        
 }
