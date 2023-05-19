@@ -25,10 +25,10 @@ contract SubscriptionsManagerUpgradeable is
     address public token; // the token to charge
     uint256 public price; // the price to charge
 
-    address recipient;
-    uint256 recipientTokenId;
+    address public recipient;
+    uint256 public recipientTokenId;
 
-    address hook;
+    address public hook;
 
     mapping(address => Subscription) public subscriptions;
     mapping(address => bool) public callers;
@@ -36,8 +36,8 @@ contract SubscriptionsManagerUpgradeable is
     address public controller; // optional, smart contract that can start a subscription and pay first charge
     address public factory; // the factory
     //address owner; // owner can cancel subscriptions, add callers
-    address community; // any CommunityContract
-    uint8 roleId; // the role
+    address public community; // any CommunityContract
+    uint8 public roleId; // the role
 
     uint8 internal constant OPERATION_SHIFT_BITS = 240; // 256 - 16
     // Constants representing operations
