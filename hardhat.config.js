@@ -64,17 +64,21 @@ module.exports = {
       url: bscURL,
       chainId: 56,
       gasPrice: "auto",
-      accounts: [process.env.private_key],
+      accounts: [
+        process.env.private_key,
+        process.env.private_key_auxiliary,
+        process.env.private_key_subscr
+      ],
       saveDeployments: true
     },
-    bsctest: {
+    bscTestnet: {
       url: bsctestURL,
       chainId: 97,
       gasPrice: "auto",
       accounts: [process.env.private_key],
       saveDeployments: true
     },
-    matic: {
+    polygon: {
       url: maticURL,
       chainId: 137,
       //gasPrice: "auto",
@@ -85,11 +89,13 @@ module.exports = {
       ],
       saveDeployments: true
     },
-    mumbai: {
+    polygonMumbai: {
       url: mumbaiURL,
       chainId: 80001,
       gasPrice: "auto",
-      accounts: [process.env.private_key],
+      accounts: [
+        process.env.private_key_auxiliary
+      ],
       saveDeployments: true
     },
     mainnet: {
@@ -111,9 +117,17 @@ module.exports = {
     currency: "USD"
   },
   etherscan: {
-    apiKey: process.env.MATIC_API_KEY
+    //apiKey: process.env.MATIC_API_KEY
     //apiKey: process.env.ETHERSCAN_API_KEY
     //apiKey: process.env.bscscan_api_key
+
+    apiKey: {
+      polygonMumbai: process.env.MATIC_API_KEY,
+      polygon: process.env.MATIC_API_KEY,
+      bsc: process.env.bscscan_api_key,
+      mainnet: process.env.ETHERSCAN_API_KEY
+    }
+    
   },
   solidity: {
     compilers: [
