@@ -5,7 +5,7 @@
     "/build/contracts/*.json",
     "!/contracts/mocks/**/*"
   ],
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Implements recurring subscriptions",
   "main": "index.js",
   "scripts": {
@@ -53,11 +53,11 @@
     "solidity-docgen": "^0.5.16",
     "solidoc": "^1.0.5",
     "ts-node": "^10.4.0",
-    "vue-loader": "^15.9.8"
+    "vue-loader": "^15.9.8",
+    "hardhat-contract-sizer": "^2.8.0"
   },
   "dependencies": {
     "@artman325/community": "^1.1.4",
-    "@artman325/releasemanager": "^2.0.0",
-    "hardhat-contract-sizer": "^2.8.0"
+    "@artman325/releasemanager": "^2.0.0"
   }
 }
