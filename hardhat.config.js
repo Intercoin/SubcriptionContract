@@ -78,7 +78,11 @@ module.exports = {
       url: maticURL,
       chainId: 137,
       //gasPrice: "auto",
-      accounts: [process.env.private_key],
+      accounts: [
+        process.env.private_key,
+        process.env.private_key_auxiliary,
+        process.env.private_key_subscr
+      ],
       saveDeployments: true
     },
     mumbai: {

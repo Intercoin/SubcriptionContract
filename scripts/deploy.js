@@ -40,8 +40,15 @@ async function main() {
 		throw("Arguments file: wrong addresses");
 	}
 
-	const [deployer] = await ethers.getSigners();
-	
+	//const [deployer] = await ethers.getSigners();
+	var signers = await ethers.getSigners();
+    var deployer;
+    if (signers.length == 1) {
+        deployer = signers[0];
+    } else {
+        [,,deployer] = signers;
+    }
+
 	const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 	console.log(
 		"Deploying contracts with the account:",

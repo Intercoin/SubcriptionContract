@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@artman325/releasemanager/contracts/CostManagerHelper.sol";
+import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
 import "@artman325/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
@@ -188,9 +189,21 @@ contract SubscriptionsManagerUpgradeable is
         address community_,
         uint8 roleId_
     ) external onlyOwner {
-        if (roleId_ == 0 && community_ != address(0)) {
+        // deployer - it's factory
+        address releaseManagerAddr = ReleaseManagerHelper(deployer).releaseManager();
+        bool isCommunityVerifying;
+        
+        if (community_ != address(0)) {
+            isCommunityVerifying = IReleaseManager(releaseManagerAddr).checkInstance(community_);
+        }
+
+        if (
+            (roleId_ == 0 && community_ != address(0)) ||   //roleID should exists if `community_` specified
+            (community_ != address(0) && !isCommunityVerifying) //`community_` should be in our ecosystem if `community_` specified
+        ) {
             revert invalidCommunitySettings();
         }
+
         //todo: also need to check "can this contract grant and revoke roleId"
 
         community = community_;
