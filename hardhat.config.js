@@ -1,18 +1,5 @@
-require('dotenv').config()
-
-require("@nomiclabs/hardhat-ethers")
-require('hardhat-docgen')
-require('hardhat-deploy')
-require("@nomiclabs/hardhat-waffle")
-require("@nomiclabs/hardhat-web3")
-require("@nomiclabs/hardhat-etherscan")
-require("solidity-coverage")
-require("hardhat-gas-reporter")
-//require("hardhat-docgen")
-require("@hardhat-docgen/core")
-//require("@hardhat-docgen/markdown")
-require("./docgen-custom-markdown")
-require('hardhat-contract-sizer');
+require('dotenv').config();
+require("@nomicfoundation/hardhat-toolbox");
 
 const kovanURL = `https://eth-kovan.alchemyapi.io/v2/${process.env.ALCHEMY_KOVAN}`
 const goerliURL = `https://eth-goerli.alchemyapi.io/v2/${process.env.ALCHEMY_GOERLI}`
@@ -28,45 +15,25 @@ module.exports = {
     local: {
       url: "http://localhost:8545", //rinkebyURL,
       chainId: 1337,
-      gasPrice: "auto",
+      //gasPrice: "auto",
       //accounts: {mnemonic: process.env.MNEMONIC,initialIndex:1},
       accounts: [process.env.private_key],
       saveDeployments: true
     },
     hardhat: {
       allowUnlimitedContractSize: false,
-      forking: {
-        url: mainnetURL
-      }
-    },
-    kovan: {
-      url: kovanURL,
-      chainId: 42,
-      gas: 12000000,
-      accounts: [process.env.private_key],
-      saveDeployments: true
-    },
-    goerli: {
-      url: goerliURL,
-      chainId: 5,
-      gasPrice: 1000,
-      accounts: [process.env.private_key],
-      saveDeployments: true
-    },
-    rinkeby: {
-      url: rinkebyURL,
-      chainId: 4,
-      gasPrice: "auto",
-      accounts: [process.env.private_key],
-      saveDeployments: true
+      //[mainnetURL]
+      chainId: 1,
+      forking: {url: mainnetURL}
     },
     bsc: {
       url: bscURL,
       chainId: 56,
-      gasPrice: "auto",
+      //gasPrice: "auto",
       accounts: [
         process.env.private_key,
         process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
         process.env.private_key_subscr
       ],
       saveDeployments: true
@@ -74,7 +41,7 @@ module.exports = {
     bscTestnet: {
       url: bsctestURL,
       chainId: 97,
-      gasPrice: "auto",
+      //gasPrice: "auto",
       accounts: [process.env.private_key],
       saveDeployments: true
     },
@@ -85,49 +52,31 @@ module.exports = {
       accounts: [
         process.env.private_key,
         process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
         process.env.private_key_subscr
-      ],
-      saveDeployments: true
-    },
-    polygonMumbai: {
-      url: mumbaiURL,
-      chainId: 80001,
-      gasPrice: "auto",
-      accounts: [
-        process.env.private_key_auxiliary
       ],
       saveDeployments: true
     },
     mainnet: {
       url: mainnetURL,
       chainId: 1,
-      gasPrice: 20000000000,
-      accounts: [process.env.private_key],
+      gasPrice: 3_000000000, //3gwei
+      accounts: [
+        process.env.private_key,
+        process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
+        process.env.private_key_subscr
+      ],
       saveDeployments: true
     }
   },
-  docgen: {
-    theme: '../../docgen-custom-markdown',
-    path: './docs',
-    clear: true,
-    runOnCompile: false,
-  },
-  gasReporter: {
-    enabled: process.env.REPORT_GAS !== undefined,
-    currency: "USD"
-  },
   etherscan: {
-    //apiKey: process.env.MATIC_API_KEY
-    //apiKey: process.env.ETHERSCAN_API_KEY
-    //apiKey: process.env.bscscan_api_key
-
     apiKey: {
       polygonMumbai: process.env.MATIC_API_KEY,
       polygon: process.env.MATIC_API_KEY,
-      bsc: process.env.bscscan_api_key,
+      bsc: process.env.BSCSCAN_API_KEY,
       mainnet: process.env.ETHERSCAN_API_KEY
     }
-    
   },
   solidity: {
     compilers: [
