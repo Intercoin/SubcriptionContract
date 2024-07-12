@@ -33,6 +33,7 @@ module.exports = {
       accounts: [
         process.env.private_key,
         process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
         process.env.private_key_subscr
       ],
       saveDeployments: true
@@ -51,6 +52,7 @@ module.exports = {
       accounts: [
         process.env.private_key,
         process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
         process.env.private_key_subscr
       ],
       saveDeployments: true
@@ -62,6 +64,7 @@ module.exports = {
       accounts: [
         process.env.private_key,
         process.env.private_key_auxiliary,
+        process.env.private_key_releasemanager,
         process.env.private_key_subscr
       ],
       saveDeployments: true

@@ -46,11 +46,24 @@ async function main() {
 
 	//const [deployer] = await ethers.getSigners();
     var signers = await ethers.getSigners();
-    var deployer;
+    const provider = ethers.provider;
+    var deployer,
+        deployer_auxiliary,
+        deployer_releasemanager,
+        deployer_subscr;
     if (signers.length == 1) {
+        
         deployer = signers[0];
+        deployer_auxiliary = signers[0];
+        deployer_releasemanager = signers[0];
+        deployer_subscr = signers[0];
     } else {
-        [,deployer,] = signers;
+        [
+            deployer,
+            deployer_auxiliary,
+            deployer_releasemanager,
+            deployer_subscr
+        ] = signers;
     }
 	
 	const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -58,7 +71,7 @@ async function main() {
     
 	console.log(
 		"Deploying contracts with the account:",
-		deployer.address
+		deployer_auxiliary.address
 	);
 
 	// var options = {
@@ -66,22 +79,23 @@ async function main() {
 	// 	gasLimit: 10e6
 	// };
 
-    const deployerBalanceBefore = await deployer.getBalance();
+    const deployerBalanceBefore = await provider.getBalance(deployer_auxiliary.address);
     console.log("Account balance:", (deployerBalanceBefore).toString());
 
 	const SubscriptionsManagerUpgradeableF = await ethers.getContractFactory("SubscriptionsManagerUpgradeable");
 
-	let implementationSubscriptionsManagerUpgradeable = await SubscriptionsManagerUpgradeableF.connect(deployer).deploy();
+	let implementationSubscriptionsManagerUpgradeable = await SubscriptionsManagerUpgradeableF.connect(deployer_auxiliary).deploy();
+    await implementationSubscriptionsManagerUpgradeable.waitForDeployment();
     
 	console.log("Implementations:");
-	console.log("  SubscriptionsManagerUpgradeable deployed at:       ", implementationSubscriptionsManagerUpgradeable.address);
+	console.log("  SubscriptionsManagerUpgradeable deployed at:       ", implementationSubscriptionsManagerUpgradeable.target);
 
-	data_object.implementationSubscriptionsManagerUpgradeable 	= implementationSubscriptionsManagerUpgradeable.address;
+	data_object.implementationSubscriptionsManagerUpgradeable 	= implementationSubscriptionsManagerUpgradeable.target;
     data_object.releaseManager                  = RELEASE_MANAGER;
 
-	const deployerBalanceAfter = await deployer.getBalance();
-	console.log("Spent:", ethers.utils.formatEther(deployerBalanceBefore.sub(deployerBalanceAfter)));
-	console.log("gasPrice:", ethers.utils.formatUnits((await network.provider.send("eth_gasPrice")), "gwei")," gwei");
+	const deployerBalanceAfter = await provider.getBalance(deployer_auxiliary.address);
+	console.log("Spent:", ethers.formatEther(deployerBalanceBefore - deployerBalanceAfter));
+	console.log("gasPrice:", ethers.formatUnits((await network.provider.send("eth_gasPrice")), "gwei")," gwei");
 
 	//---
 	const ts_updated = Date.now();
@@ -91,6 +105,9 @@ async function main() {
     let data_to_write = JSON.stringify(data_object_root, null, 2);
 	console.log(data_to_write);
     await write_data(data_to_write);
+
+    console.log('verifying');
+    await hre.run("verify:verify", {address: data_object.implementationSubscriptionsManagerUpgradeable, constructorArguments: []});
 }
 
 main()
