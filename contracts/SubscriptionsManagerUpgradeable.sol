@@ -5,9 +5,9 @@ pragma solidity >=0.8.0 <0.9.0;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
-import "@artman325/releasemanager/contracts/CostManagerHelper.sol";
-import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
-import "@artman325/community/contracts/interfaces/ICommunity.sol";
+import "@intercoin/releasemanager/contracts/CostManagerHelper.sol";
+import "@intercoin/releasemanager/contracts/ReleaseManagerHelper.sol";
+import "@intercoin/community/contracts/interfaces/ICommunity.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 import "./interfaces/ISubscriptionsHook.sol";
@@ -97,8 +97,7 @@ contract SubscriptionsManagerUpgradeable is
         address costManager_,
         address producedBy_
     ) external override initializer {
-        __CostManagerHelper_init(_msgSender());
-        _setCostManager(costManager_);
+        __CostManagerHelper_init(_msgSender(), costManager_);
 
         __Ownable_init();
         __ReentrancyGuard_init();
@@ -190,7 +189,7 @@ contract SubscriptionsManagerUpgradeable is
         uint8 roleId_
     ) external onlyOwner {
         // deployer - it's factory
-        address releaseManagerAddr = ReleaseManagerHelper(deployer).releaseManager();
+        address releaseManagerAddr = ReleaseManagerHelper(getDeployer()).releaseManager();
         bool isCommunityVerifying;
         
         if (community_ != address(0)) {

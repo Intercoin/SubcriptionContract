@@ -1,11 +1,11 @@
 {
-  "name": "@artman325/subscriptioncontract",
+  "name": "@intercoin/subscriptioncontract",
   "files": [
     "/contracts/**/*.sol",
     "/build/contracts/*.json",
     "!/contracts/mocks/**/*"
   ],
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Implements recurring subscriptions",
   "main": "index.js",
   "scripts": {
@@ -57,7 +57,7 @@
     "hardhat-contract-sizer": "^2.8.0"
   },
   "dependencies": {
-    "@artman325/community": "^1.1.4",
-    "@artman325/releasemanager": "^2.0.0"
+    "@intercoin/community": "^1.2.2",
+    "@intercoin/releasemanager": "^2.2.1"
   }
 }

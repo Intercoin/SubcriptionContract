@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@artman325/releasemanager/contracts/CostManagerFactoryHelper.sol";
-import "@artman325/releasemanager/contracts/ReleaseManagerHelper.sol";
-import "@artman325/releasemanager/contracts/ReleaseManager.sol";
+import "@intercoin/releasemanager/contracts/CostManagerFactoryHelper.sol";
+import "@intercoin/releasemanager/contracts/ReleaseManagerHelper.sol";
+import "@intercoin/releasemanager/contracts/ReleaseManager.sol";
 import "./interfaces/ISubscriptionsManagerUpgradeable.sol";
 import "./interfaces/ISubscriptionsManagerFactory.sol";
 

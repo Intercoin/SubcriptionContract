@@ -790,6 +790,16 @@ describe("Test", function () {
                 var MockCommunity;
                 var roleIndex = 5;
                 beforeEach("before", async() => {
+const factoriesList = [SubscriptionsManagerFactory.address];
+const factoryInfo = [
+    [
+        1,//uint8 factoryIndex; 
+        1,//uint16 releaseTag; 
+        "0x53696c766572000000000000000000000000000000000000"//bytes24 factoryChangeNotes;
+    ]
+];
+
+await releaseManager.connect(owner).newRelease(factoriesList, factoryInfo);
                     let MockCommunityF = await ethers.getContractFactory("MockCommunity");
                     MockCommunity = await MockCommunityF.connect(owner).deploy();
 
