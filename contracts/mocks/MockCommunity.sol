@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
-import "@artman325/community/contracts/interfaces/ICommunity.sol";
+import "@intercoin/community/contracts/interfaces/ICommunity.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract MockCommunity is ICommunity {
@@ -12,12 +12,13 @@ contract MockCommunity is ICommunity {
     uint256 count = 5;
 
     function initialize(
-        address implState,
-        address implView,
         address hook,
+        address invitedHook,
         address costManager,
+        address authorizedInviteManager,
         string memory name,
-        string memory symbol
+        string memory symbol,
+        string memory contractUri
     ) external {}
 
     function addressesCount(
@@ -59,11 +60,15 @@ contract MockCommunity is ICommunity {
     }
 
     function getAddresses(
-        uint8[] memory /* rolesIndex*/
+        uint8[] calldata /* rolesIndex*/
     ) public pure override returns (address[][] memory) {
         address[][] memory list = new address[][](0);
         return list;
     }
+    function getRolesWhichAccountCanGrant(
+        address accountWhichWillGrant,
+        string[] memory roleNames
+    ) external view returns (uint8[] memory) {}
 
     function hasRole(
         address account,
